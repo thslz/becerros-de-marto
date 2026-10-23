@@ -15,6 +15,8 @@
 <style>
   :root {
     --u: 1px;
+    --W: 640;
+    --H: 360;
     --ink: #3b2414;
     --parch: #f3e4bd;
     --parch2: #e2c98f;
@@ -41,7 +43,7 @@
   }
   #stage {
     position: relative; overflow: hidden;
-    width: calc(640 * var(--u)); height: calc(360 * var(--u));
+    width: calc(var(--W) * var(--u)); height: calc(var(--H) * var(--u));
     box-shadow: 0 0 0 calc(2 * var(--u)) #10202e, 0 calc(6 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.5);
   }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -150,7 +152,7 @@
   #bPause { font-size: calc(10 * var(--u)); padding: calc(2 * var(--u)) calc(8 * var(--u)) calc(4 * var(--u)); }
 
   /* ---------- banner de nivel ---------- */
-  #banner { position: absolute; left: 0; right: 0; top: calc(120 * var(--u)); text-align: center; pointer-events: none; z-index: 2; }
+  #banner { position: absolute; left: 0; right: 0; top: calc(var(--H) * 0.33 * var(--u)); text-align: center; pointer-events: none; z-index: 2; }
   #banner .bt { display: inline-block; font-family: 'Jacquard 24', serif; font-size: calc(44 * var(--u)); color: var(--gold); padding: 0 calc(30 * var(--u));
     background: linear-gradient(90deg, transparent, rgba(43,26,13,.85) 15%, rgba(43,26,13,.85) 85%, transparent);
     text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 #000; animation: pop .45s cubic-bezier(.2,1.6,.4,1); }
@@ -197,10 +199,25 @@
 
   #mute { position: absolute; right: calc(6 * var(--u)); bottom: calc(6 * var(--u)); z-index: 5; font-size: calc(9 * var(--u)); padding: calc(3 * var(--u)) calc(7 * var(--u)) calc(5 * var(--u)); }
   #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--parch); font-size: calc(14 * var(--u)); background: var(--sea); z-index: 9; }
-  #rotate { display: none; }
-  @media (orientation: portrait) and (max-width: 760px) {
-    #rotate { display: block; position: fixed; left: 0; right: 0; bottom: 18px; text-align: center; color: var(--parch); font-size: 14px; }
-  }
+
+  /* ---------- celular en vertical: tablero alto y angosto ---------- */
+  .portrait .title-wrap { flex-wrap: wrap; justify-content: center; width: calc(340 * var(--u)); }
+  .portrait .title-card { order: -1; width: calc(330 * var(--u)); margin-bottom: calc(10 * var(--u)); }
+  .portrait .hero { height: calc(150 * var(--u)); }
+  .portrait #title h1 { font-size: calc(42 * var(--u)); }
+  .portrait #mission .card { width: calc(336 * var(--u)); padding: calc(12 * var(--u)) calc(12 * var(--u)); }
+  .portrait #mission ul { font-size: calc(10 * var(--u)); }
+  .portrait .over-card { width: calc(336 * var(--u)); grid-template-columns: 1fr; gap: calc(10 * var(--u)); }
+  .portrait .side { border-top: calc(1 * var(--u)) dashed rgba(91,58,28,.4); padding-top: calc(8 * var(--u)); }
+  .portrait #rank .card { width: calc(320 * var(--u)); }
+  .portrait #cap { width: calc(340 * var(--u)); white-space: normal; font-size: calc(12 * var(--u)); bottom: calc(6 * var(--u)); line-height: 1.2; }
+  .portrait #namecard { top: calc(60 * var(--u)); }
+  .portrait #namecard .n { font-size: calc(40 * var(--u)); }
+  .portrait #hud { gap: calc(3 * var(--u)); padding: 0 calc(4 * var(--u)); font-size: calc(10 * var(--u)); }
+  .portrait .plate { padding: 0 calc(4 * var(--u)); }
+  .portrait #hScore { min-width: calc(48 * var(--u)); font-size: calc(11 * var(--u)); }
+  .portrait #hLives { gap: calc(2 * var(--u)); }
+  .portrait #bPause { padding: calc(2 * var(--u)) calc(5 * var(--u)) calc(4 * var(--u)); }
 </style>
 </head>
 <body>
@@ -300,7 +317,6 @@
   <button class="btn ghost" id="mute" aria-label="Sonido">♪ on</button>
   <div id="loading">Cargando el establo…</div>
 </div>
-<div id="rotate">Girá el celu para jugar mejor</div>
 <script src="config.js"></script>
 <script src="game.js"></script>
 </body>

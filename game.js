@@ -5,18 +5,48 @@
 /* =========================================================
    Constantes y utilidades
    ========================================================= */
-const W = 640, H = 360, HUD_H = 26;
-const F = { x0: 22, y0: 36, x1: 618, y1: 348 };          // campo jugable
-const CORRAL = { x0: 22, y0: 256, x1: 136, y1: 348 };    // zona segura
-const GATE = { x0: 62, x1: 102 };                         // tranquera del corral (lado de arriba)
-const BARN = { x: 284, y: 40, door: { x: 307, y: 104 } };
+const HUD_H = 26;
 const SPACING = 17;
 const MIN_Y = HUD_H + 52;                                 // pies de Marto lo más arriba posible sin tapar el HUD
 const MARTO_SPEED = 118;
+// el tablero se arma según la pantalla: apaisado (640x360) o vertical para celular (360 x alto)
+let W, H, PORTRAIT, F, CORRAL, GATE, BARN, WELL, BALES, BAR, CORRAL_BLOCK;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+const wantPortrait = () => innerHeight > innerWidth * 1.15;
+function setLayout(portrait) {
+  PORTRAIT = portrait;
+  W = portrait ? 360 : 640;
+  H = portrait ? Math.max(560, Math.min(780, Math.round(360 * innerHeight / innerWidth))) : 360;
+  F = portrait ? { x0: 14, y0: 36, x1: W - 14, y1: H - 12 } : { x0: 22, y0: 36, x1: 618, y1: 348 };
+  CORRAL = { x0: F.x0, y0: F.y1 - 92, x1: F.x0 + 114, y1: F.y1 };   // zona segura, abajo a la izquierda
+  GATE = { x0: CORRAL.x0 + 40, x1: CORRAL.x0 + 80 };                  // tranquera (lado de arriba)
+  BARN = { x: Math.round(W / 2) - 36, y: 40 };
+  BARN.door = { x: BARN.x + 23, y: BARN.y + 64 };
+  WELL = { x: F.x1 - 68, y: 72 };
+  const fw = F.x1 - F.x0, fh = F.y1 - F.y0;
+  BALES = portrait
+    ? [[0.12, 0.2], [0.66, 0.26], [0.38, 0.45], [0.68, 0.6], [0.5, 0.76]].map(([x, y]) => [Math.round(F.x0 + x * fw), Math.round(F.y0 + y * fh)])
+    : [[168, 132], [446, 126], [300, 206], [500, 268], [214, 290]];
+  BAR = portrait ? 46 : 26;                                             // franjas negras de la intro
+  CORRAL_BLOCK = { x: CORRAL.x0 - 4, y: CORRAL.y0 - 6, w: CORRAL.x1 - CORRAL.x0 + 8, h: CORRAL.y1 - CORRAL.y0 + 10 };
+  canvas.width = W; canvas.height = H;
+  ctx.imageSmoothingEnabled = false;
+  const root = document.documentElement.style;
+  root.setProperty('--W', W); root.setProperty('--H', H);
+  document.body.classList.toggle('portrait', portrait);
+  fit();
+}
+// cambia de layout solo en pantallas donde no hay una partida en juego
+function ensureLayout() {
+  const p = wantPortrait();
+  const portraitH = Math.max(560, Math.min(780, Math.round(360 * innerHeight / innerWidth)));
+  if (p === PORTRAIT && (!p || Math.abs(portraitH - H) < 16)) return false;
+  setLayout(wantPortrait());
+  if (BG) buildBoard();
+  return true;
+}
 const CFG = window.BECERROS_CONFIG || {};
 const $ = s => document.querySelector(s);
 
@@ -38,14 +68,14 @@ function fit() {
   const u = Math.min(innerWidth / W, innerHeight / H);
   document.documentElement.style.setProperty('--u', u + 'px');
 }
-addEventListener('resize', fit);
-fit();
+setLayout(wantPortrait());
+addEventListener('resize', () => { if (state === 'title' && ensureLayout()) goTitle(); fit(); });
 
 /* =========================================================
    Assets: sprites recortados + sprites hechos en código
    ========================================================= */
 const IMG = {};
-const ASSETS = ['marto_front', 'marto_side', 'marto_back', 'clown_front', 'clown_side', 'clown_back',
+const ASSETS = ['marto_front', 'marto_side', 'marto_back', 'clown_front', 'clown_side', 'clown_back', 'clown_juggle',
   'marto_head_front', 'marto_head_side', 'clown_head_front', 'clown_head_side'];
 function loadAssets() {
   return Promise.all(ASSETS.map(n => new Promise((res, rej) => {
@@ -158,7 +188,6 @@ function buildSprites() {
    ========================================================= */
 let BG, FG;
 const OBST = [];
-const BALES = [[168, 132], [446, 126], [300, 206], [500, 268], [214, 290]];
 function hexPath(g, cx, cy, r) {
   g.beginPath();
   for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 30); const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); i ? g.lineTo(x, y) : g.moveTo(x, y); }
@@ -216,7 +245,7 @@ function buildBoard() {
   for (let k = 0; k < 260; k++) { g.fillStyle = r() < .5 ? '#e2bf73' : '#a77f3d'; g.fillRect(CORRAL.x0 + Math.floor(r() * (CORRAL.x1 - CORRAL.x0)), CORRAL.y0 + Math.floor(r() * (CORRAL.y1 - CORRAL.y0)), 2, 1); }
   g.fillStyle = 'rgba(80,50,20,.25)'; g.fillRect(CORRAL.x0, CORRAL.y0, CORRAL.x1 - CORRAL.x0, 3);
   // bebedero del corral
-  g.fillStyle = '#2b1a0d'; g.fillRect(30, 334, 40, 10); g.fillStyle = '#7a4f26'; g.fillRect(31, 335, 38, 8); g.fillStyle = '#4b8ec4'; g.fillRect(33, 336, 34, 3);
+  g.fillStyle = '#2b1a0d'; g.fillRect(CORRAL.x0 + 8, CORRAL.y1 - 14, 40, 10); g.fillStyle = '#7a4f26'; g.fillRect(CORRAL.x0 + 9, CORRAL.y1 - 13, 38, 8); g.fillStyle = '#4b8ec4'; g.fillRect(CORRAL.x0 + 11, CORRAL.y1 - 12, 34, 3);
   g.restore();
   // cercos
   fenceH(g, F.x0, F.x1, F.y0 + 1);
@@ -234,8 +263,8 @@ function buildBoard() {
   FG = fc;
 
   OBST.length = 0;
-  OBST.push({ x: 286, y: 78, w: 68, h: 20, kind: 'barn' });
-  OBST.push({ x: 550, y: 72, w: 22, h: 12, kind: 'well' });
+  OBST.push({ x: BARN.x + 2, y: BARN.y + 38, w: 68, h: 20, kind: 'barn' });
+  OBST.push({ x: WELL.x, y: WELL.y, w: 22, h: 12, kind: 'well' });
   for (const [x, y] of BALES) OBST.push({ x, y, w: 30, h: 12, kind: 'bale' });
   OBST.push({ x: CORRAL.x0, y: CORRAL.y0 - 3, w: GATE.x0 - CORRAL.x0, h: 5, kind: 'fence' });
   OBST.push({ x: GATE.x1, y: CORRAL.y0 - 3, w: CORRAL.x1 - GATE.x1 + 2, h: 5, kind: 'fence' });
@@ -463,7 +492,6 @@ function resolveRect(e, r, rc) {
   const d = Math.sqrt(d2); e.x = cx + dx / d * r; e.y = cy + dy / d * r;
   return true;
 }
-const CORRAL_BLOCK = { x: CORRAL.x0 - 4, y: CORRAL.y0 - 6, w: CORRAL.x1 - CORRAL.x0 + 8, h: CORRAL.y1 - CORRAL.y0 + 10 };
 // mueve una entidad con radio r; devuelve qué la frenó
 function move(e, dx, dy, r, opts = {}) {
   e.x += dx; e.y += dy;
@@ -485,7 +513,7 @@ function randomFieldPoint() {
     if (OBST.some(o => p.x > o.x - 12 && p.x < o.x + o.w + 12 && p.y > o.y - 12 && p.y < o.y + o.h + 12)) continue;
     return p;
   }
-  return { x: 380, y: 170 };
+  return { x: W * 0.6, y: H * 0.5 };
 }
 
 /* =========================================================
@@ -507,7 +535,7 @@ const LEVEL_LINES = ['', 'Atrapá los becerros y llevalos al corral', 'Clown se 
 function newWorld(demo) {
   return {
     demo, level: 1, cfg: levelCfg(1), score: 0, lives: 3, total: 0, levelDep: 0, time: 0, spawnT: 0.3,
-    marto: { x: 79, y: 306, vx: 0, vy: 0, h: 54, dir: 'front', walk: 0, moving: false, state: 'ok', fallT: 0, fallDir: 1, inv: 0, trail: [{ x: 79, y: 306 }], followers: [], dustT: 0 },
+    marto: { x: CORRAL.x0 + 57, y: CORRAL.y0 + 50, vx: 0, vy: 0, h: 54, dir: 'front', walk: 0, moving: false, state: 'ok', fallT: 0, fallDir: 1, inv: 0, trail: [{ x: CORRAL.x0 + 57, y: CORRAL.y0 + 50 }], followers: [], dustT: 0 },
     calves: [], dogs: [], clown: null, balls: [], parts: [], texts: [], shake: 0, flash: 0,
   };
 }
@@ -525,12 +553,12 @@ function setupLevel(n) {
   G.balls = [];
   const m = G.marto;
   G.dogs = [];
-  const spots = [[600, 60], [600, 330], [420, 60], [230, 60], [600, 200]];
+  const spots = [[F.x1 - 18, MIN_Y + 4], [F.x1 - 18, F.y1 - 18], [W * 0.66, MIN_Y + 4], [W * 0.36, MIN_Y + 4], [F.x1 - 18, (F.y0 + F.y1) / 2]];
   for (let i = 0; i < G.cfg.dogs; i++) {
     const [x, y] = spots[i % spots.length];
     G.dogs.push({ x, y, h: 16, state: 'patrol', t: rand(1, 3), tx: x, ty: y, face: -1, anim: 0, vx: 0, vy: 0 });
   }
-  G.clown = { x: 520, y: 170, h: 60, vx: 0, vy: 0, state: 'stroll', t: 3, volley: 0, face: 'front', walk: 0, after: [], afterT: 0, dx: 0, dy: 0 };
+  G.clown = { x: W * 0.81, y: H * 0.47, h: 60, vx: 0, vy: 0, state: 'stroll', t: 3, volley: 0, face: 'front', walk: 0, after: [], afterT: 0, dx: 0, dy: 0 };
   m.inv = Math.max(m.inv, 1.2);
   const field = G.calves.filter(c => c.state !== 'corral').length;
   for (let i = field; i < 3; i++) spawnCalf(false);
@@ -762,7 +790,7 @@ function updateClown(dt) {
   switch (c.state) {
     case 'stroll': {
       // se acerca hasta tenerte a tiro y ahí se queda rondando; tocarlo igual te tumba
-      const target = tg ? m : { x: 380, y: 190 };
+      const target = tg ? m : { x: W * 0.6, y: H * 0.53 };
       if (!tg || dm > 120) steer(c, target.x, target.y, cfg.clownWalk, dt);
       else if (dm < 80) steer(c, c.x * 2 - m.x, c.y * 2 - m.y, cfg.clownWalk * 0.7, dt);
       else brake(c, dt, 4);
@@ -891,8 +919,8 @@ function drawDog(d) {
 }
 // hojas de animación de Marto y Clown: 2 cuadros quieto (respira) + 4 de caminata
 const FRAMES = 6;
-function drawFrame(img, fi, x, y, flip, dy = 0) {
-  const w = img.width / FRAMES, h = img.height;
+function drawFrame(img, fi, x, y, flip, dy = 0, frames = FRAMES) {
+  const w = img.width / frames, h = img.height;
   const px = Math.round(x - w / 2), py = Math.round(y - h + 2 + dy);
   if (flip) { ctx.save(); ctx.translate(px + w, py); ctx.scale(-1, 1); ctx.drawImage(img, fi * w, 0, w, h, 0, 0, w, h); ctx.restore(); }
   else ctx.drawImage(img, fi * w, 0, w, h, px, py, w, h);
@@ -913,19 +941,25 @@ function drawMarto(m) {
 function clownImg(f) { return f === 'front' ? IMG.clown_front : f === 'back' ? IMG.clown_back : IMG.clown_side; }
 function drawClown(c) {
   const dy = c.state === 'laugh' ? (Math.sin(G.time * 22) > 0 ? -2 : 0) : 0;
-  c.fi = animFrame(c.moving, c.walk, 1.3);
-  drawFrame(clownImg(c.face), c.fi, c.x, c.y, c.face === 'right', dy);
-  if (c.state === 'laugh') return;
-  // malabares todo el tiempo: tres pelotas en arco sobre las manos (más rápido cuando apunta)
   const spd = c.state === 'juggle' ? 13 : 7.5;
+  // quieto o apuntando: pose de malabares de frente (4 cuadros, manos alternadas)
+  const juggling = c.state !== 'laugh' && (c.state === 'juggle' || !c.moving);
+  if (juggling) {
+    drawFrame(IMG.clown_juggle, Math.floor(G.time * spd * 0.64) % 4, c.x, c.y, false, 0, 4);
+  } else {
+    c.fi = animFrame(c.moving, c.walk, 1.3);
+    drawFrame(clownImg(c.face), c.fi, c.x, c.y, c.face === 'right', dy);
+  }
+  if (c.state === 'laugh') return;
+  // tres pelotas en arco entre las manos
   for (let i = 0; i < 3; i++) {
     const p = G.time * spd + i * Math.PI * 2 / 3;
-    const x = Math.round(c.x - Math.cos(p) * 8), y = Math.round(c.y - 24 - Math.abs(Math.sin(p)) * 16);
+    const x = Math.round(c.x - 0.5 - Math.cos(p) * (juggling ? 6 : 8)), y = Math.round(c.y - 37 - Math.abs(Math.sin(p)) * 26);
     ctx.fillStyle = '#2b1a0d'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
     ctx.fillStyle = BALL_COLS[i]; ctx.fillRect(x - 2, y - 2, 5, 5);
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x - 1, y - 1, 1, 1);
   }
-  if (c.state === 'juggle' && c.thrown === 0) bang(c.x, c.y - 66);
+  if (c.state === 'juggle' && c.thrown === 0) bang(c.x, c.y - 70);
 }
 function drawBall(b) {
   const x = Math.round(b.x), y = Math.round(b.y - b.z);
@@ -1013,19 +1047,22 @@ function banner(title, sub, ms = 2200) {
 function show(id) { ['#title', '#intro', '#pause', '#over', '#rank'].forEach(s => { $(s).hidden = s !== id; }); }
 
 function goTitle() {
+  ensureLayout();
   state = 'title';
   G = newWorld(true);
   for (let i = 0; i < 5; i++) spawnCalf(false);
-  G.dogs = [{ x: 560, y: 300, h: 16, state: 'patrol', t: 1, tx: 560, ty: 300, face: -1, anim: 0 }];
+  G.dogs = [{ x: F.x1 - 58, y: F.y1 - 48, h: 16, state: 'patrol', t: 1, tx: F.x1 - 58, ty: F.y1 - 48, face: -1, anim: 0 }];
   show('#title');
   $('#hud').hidden = true; $('#banner').hidden = true;
   const best = store.get('bdm_best', 0);
   $('#tBest').hidden = !best; $('#tBest').textContent = `Tu mejor puntaje: ${best}`;
   $('#bIntro').hidden = !store.get('bdm_seen', false);
+  if (matchMedia('(pointer: coarse)').matches) $('#title .hint').textContent = 'Arrastrá el dedo para mover a Marto';
   A.play('intro');
 }
 function startGame() {
   A.init();
+  ensureLayout();
   G = newWorld(false);
   setupLevel(1);
   state = 'play';
@@ -1154,6 +1191,7 @@ const SCENES = [
 ];
 function startIntro() {
   A.init();
+  ensureLayout();
   store.set('bdm_seen', true);
   state = 'intro';
   G = newWorld(true);
@@ -1177,8 +1215,8 @@ function enterScene(i) {
     setTimeout(() => { if (intro.i === i && state === 'intro') nc.classList.add('on'); }, 350);
   }
   if (s.mission) { $('#mission').hidden = false; $('#skip').hidden = true; setTimeout(() => $('#mGo').focus(), 50); }
-  if (i === 4) intro.runners = Array.from({ length: 11 }, (_, k) => ({ type: k % 5 === 0 ? 'dorado' : k % 3 === 0 ? 'marron' : 'pinto', x: -40 - k * 46 - rand(0, 30), y: rand(150, 320), sp: rand(150, 210), dog: false }))
-    .concat([0, 1, 2].map(k => ({ type: 'dog', x: -380 - k * 90, y: rand(170, 300), sp: 200, dog: true })));
+  if (i === 4) intro.runners = Array.from({ length: 11 }, (_, k) => ({ type: k % 5 === 0 ? 'dorado' : k % 3 === 0 ? 'marron' : 'pinto', x: -40 - k * 46 - rand(0, 30), y: rand(H * 0.42, H - BAR - 8), sp: rand(150, 210), dog: false }))
+    .concat([0, 1, 2].map(k => ({ type: 'dog', x: -380 - k * 90, y: rand(H * 0.47, H - BAR - 20), sp: 200, dog: true })));
   if (s.enter) s.enter();
 }
 function introAdvance() {
@@ -1193,7 +1231,7 @@ function updateIntro(dt) {
   ctx.save();
   s.draw(intro.t, s.d, dt);
   ctx.restore();
-  if (!s.mission) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, 26); ctx.fillRect(0, H - 26, W, 26); }
+  if (!s.mission) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, BAR); ctx.fillRect(0, H - BAR, W, BAR); }
   if (intro.t >= s.d) enterScene(intro.i + 1);
 }
 function speedLines(cx, cy, c1, c2, t, n = 36) {
@@ -1219,9 +1257,9 @@ function sceneValley(t, d, dt) {
   ctx.fillStyle = `rgba(0,0,0,${1 - ease(t / 0.8)})`; ctx.fillRect(0, 0, W, H);
 }
 function sceneMarto(t) {
-  speedLines(470, 200, '#2f5fa8', '#3d72c2', t);
+  speedLines(W * 0.73, H * 0.55, '#2f5fa8', '#3d72c2', t);
   hLines(t, 'rgba(255,255,255,.35)');
-  const img = IMG.marto_head_front, x = Math.round(-240 + (W - img.width - 70 + 240) * ease(t / 0.45)), y = H - 26 - img.height;
+  const img = IMG.marto_head_front, x = Math.round(-240 + (W - img.width - 70 + 240) * ease(t / 0.45)), y = H - BAR - img.height;
   ctx.drawImage(img, x, y);
   if (t > 1.1 && t < 1.9) {
     const k = Math.sin((t - 1.1) / 0.8 * Math.PI), sx = Math.round(x + img.width * 0.5), sy = Math.round(y + img.height * 0.62), r = Math.round(10 * k);
@@ -1235,24 +1273,24 @@ function sceneFlash(t) {
     ctx.fillStyle = '#eef3ff'; ctx.fillRect(0, 0, W, H);
   } else if (t > 0.2 && t < 0.6) {
     ctx.strokeStyle = '#dfe8ff'; ctx.lineWidth = 3; ctx.beginPath();
-    let x = 380, y = 26; ctx.moveTo(x, y);
-    const r = mulberry(5); while (y < H - 26) { x += (r() - 0.5) * 60; y += 20 + r() * 20; ctx.lineTo(x, y); }
+    let x = W * 0.6, y = BAR; ctx.moveTo(x, y);
+    const r = mulberry(5); while (y < H - BAR) { x += (r() - 0.5) * 60; y += 20 + r() * 20; ctx.lineTo(x, y); }
     ctx.stroke();
   }
 }
 function sceneClown(t) {
-  speedLines(200, 190, '#3a0d10', '#6b1a1e', -t * 3);
+  speedLines(W * 0.31, H * 0.53, '#3a0d10', '#6b1a1e', -t * 3);
   hLines(t, 'rgba(255,120,100,.3)', 1);
   const img = IMG.clown_head_front;
   const shake = (t < 0.6 || (t > 1.6 && t < 2.4)) ? 3 : 0;
-  const x = Math.round(W + 40 - (W + 40 - 80) * ease(t / 0.45) + rand(-shake, shake)), y = Math.round(H - 26 - img.height + rand(-shake, shake));
+  const x = Math.round(W + 40 - (W + 40 - 80) * ease(t / 0.45) + rand(-shake, shake)), y = Math.round(H - BAR - img.height + rand(-shake, shake));
   ctx.drawImage(img, x, y);
   for (let i = 0; i < 3; i++) {
     const a = t * 4 + i * 2.1, bx = Math.round(x + img.width / 2 + Math.cos(a) * 120), by = Math.round(y + 40 + Math.sin(a) * 30);
     ctx.fillStyle = '#2b1a0d'; ctx.fillRect(bx - 6, by - 6, 13, 13); ctx.fillStyle = ['#b8322a', '#2f5fa8', '#e6b83c'][i]; ctx.fillRect(bx - 5, by - 5, 11, 11); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(bx - 3, by - 3, 3, 3);
   }
   ctx.font = '400 40px "Jacquard 24", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  [[1.0, 330, 90, -0.2], [1.35, 420, 140, 0.15], [1.7, 300, 175, -0.1]].forEach(([at, jx, jy, rot]) => {
+  [[1.0, 0.47, 0.4, -0.2], [1.35, 0.6, 0.53, 0.15], [1.7, 0.5, 0.66, -0.1]].map(([at, fx, fy, rot]) => [at, W * fx, H * fy, rot]).forEach(([at, jx, jy, rot]) => {
     if (t < at) return;
     const k = ease((t - at) / 0.15);
     ctx.save(); ctx.translate(jx, jy); ctx.rotate(rot); ctx.scale(k, k);
@@ -1266,8 +1304,8 @@ function sceneChaos(t, d, dt) {
   ctx.drawImage(BG, ox, 0);
   ctx.drawImage(SPR.barn, BARN.x + ox, BARN.y);
   ctx.fillStyle = 'rgba(12,20,60,.58)'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#f6eed0'; ctx.beginPath(); ctx.arc(560, 70, 18, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(12,20,60,.9)'; ctx.beginPath(); ctx.arc(568, 64, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f6eed0'; ctx.beginPath(); ctx.arc(W - 80, 70, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(12,20,60,.9)'; ctx.beginPath(); ctx.arc(W - 72, 64, 16, 0, Math.PI * 2); ctx.fill();
   const rs = intro.runners.slice().sort((a, b) => a.y - b.y);
   for (const r of rs) {
     r.x += r.sp * dt;
@@ -1279,17 +1317,27 @@ function sceneChaos(t, d, dt) {
   }
 }
 function sceneVs(t) {
-  ctx.fillStyle = '#2f5fa8'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#b8322a'; ctx.beginPath(); ctx.moveTo(350, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H); ctx.lineTo(290, H); ctx.fill();
-  hLines(t, 'rgba(255,255,255,.25)');
-  ctx.fillStyle = '#fff4d6'; ctx.beginPath(); ctx.moveTo(344, 0); ctx.lineTo(356, 0); ctx.lineTo(296, H); ctx.lineTo(284, H); ctx.fill();
   const ml = IMG.marto_head_side, cl = IMG.clown_head_side, k = ease(t / 0.4);
-  const mx = Math.round(-ml.width + (40 + ml.width) * k), cx = Math.round(W - (40 + cl.width) * k), y = H - 26 - ml.height;
-  ctx.save(); ctx.translate(mx + ml.width, y); ctx.scale(-1, 1); ctx.drawImage(ml, 0, 0); ctx.restore();
-  ctx.drawImage(cl, cx, y);   // de perfil ya mira a la izquierda: queda enfrentado a Marto
+  // corte en diagonal: vertical en apaisado, casi horizontal en el celu
+  const cut = PORTRAIT ? [[0, H * 0.6], [W, H * 0.42]] : [[350, 0], [290, H]];
+  ctx.fillStyle = '#2f5fa8'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#b8322a'; ctx.beginPath();
+  if (PORTRAIT) { ctx.moveTo(0, cut[0][1]); ctx.lineTo(W, cut[1][1]); ctx.lineTo(W, H); ctx.lineTo(0, H); }
+  else { ctx.moveTo(cut[0][0], 0); ctx.lineTo(W, 0); ctx.lineTo(W, H); ctx.lineTo(cut[1][0], H); }
+  ctx.fill();
+  hLines(t, 'rgba(255,255,255,.25)');
+  ctx.fillStyle = '#fff4d6'; ctx.beginPath();
+  if (PORTRAIT) { ctx.moveTo(0, cut[0][1] - 6); ctx.lineTo(W, cut[1][1] - 6); ctx.lineTo(W, cut[1][1] + 6); ctx.lineTo(0, cut[0][1] + 6); }
+  else { ctx.moveTo(344, 0); ctx.lineTo(356, 0); ctx.lineTo(296, H); ctx.lineTo(284, H); }
+  ctx.fill();
+  // Marto a la izquierda mirando a la derecha (espejado), Clown a la derecha mirando a la izquierda
+  const mx = Math.round(-ml.width + ((PORTRAIT ? 16 : 40) + ml.width) * k), cx = Math.round(W - ((PORTRAIT ? 16 : 40) + cl.width) * k);
+  const my = PORTRAIT ? BAR + 30 : H - BAR - ml.height, cy = H - BAR - cl.height;
+  ctx.save(); ctx.translate(mx + ml.width, my); ctx.scale(-1, 1); ctx.drawImage(ml, 0, 0); ctx.restore();
+  ctx.drawImage(cl, cx, cy);   // de perfil ya mira a la izquierda: queda enfrentado a Marto
   if (t > 0.45) {
     const s = 1 + Math.max(0, 0.6 - (t - 0.45) * 3), sh = t < 0.8 ? 3 : 0;
-    ctx.save(); ctx.translate(320 + rand(-sh, sh), 150 + rand(-sh, sh)); ctx.scale(s, s);
+    ctx.save(); ctx.translate(W / 2 + rand(-sh, sh), (PORTRAIT ? H * 0.51 : 150) + rand(-sh, sh)); ctx.scale(s, s);
     ctx.font = '400 92px "Jacquard 24", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 10; ctx.strokeStyle = '#2b1a0d'; ctx.strokeText('VS', 0, 0); ctx.fillStyle = '#e6b83c'; ctx.fillText('VS', 0, 0);
     ctx.restore();
