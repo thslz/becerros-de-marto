@@ -971,11 +971,11 @@ function drawClown(c) {
     c.fi = animFrame(c.moving, c.walk, 1.3);
     drawFrame(clownImg(c.face), c.fi, c.x, c.y, c.face === 'right', dy);
   }
-  if (c.state === 'laugh') return;
+  if (!juggling) return;                     // caminando o riéndose no hace malabares
   // tres pelotas en arco entre las manos
   for (let i = 0; i < 3; i++) {
     const p = G.time * spd + i * Math.PI * 2 / 3;
-    const x = Math.round(c.x - 0.5 - Math.cos(p) * (juggling ? 6 : 8)), y = Math.round(c.y - 37 - Math.abs(Math.sin(p)) * 26);
+    const x = Math.round(c.x - 0.5 - Math.cos(p) * 6), y = Math.round(c.y - 37 - Math.abs(Math.sin(p)) * 26);
     ctx.fillStyle = '#2b1a0d'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
     ctx.fillStyle = BALL_COLS[i]; ctx.fillRect(x - 2, y - 2, 5, 5);
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x - 1, y - 1, 1, 1);
