@@ -430,11 +430,11 @@ const A = {
 };
 
 /* =========================================================
-   Entrada: teclado + joystick táctil
+   Entrada: teclado + deslizamiento táctil
    ========================================================= */
 const keys = new Set();
 const input = { x: 0, y: 0 };
-const touch = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+const touch = { id: null, ox: 0, oy: 0, x: 0, y: 0, turned: false };
 const KEYMAP = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd' };
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
@@ -464,34 +464,39 @@ $('#tap').addEventListener('click', e => {
   const btn = under && under.closest('button');
   if (btn) btn.click();
 });
+// celular: control por deslizamiento, como la viborita. Deslizás y Marto sigue en esa dirección
+// hasta el próximo deslizamiento (se puede encadenar sin levantar el dedo); un toque corto lo frena
+const SWIPE = 14;                         // en píxeles del juego
+const swipeDir = { x: 0, y: 0 };
 stage.addEventListener('pointerdown', e => {
   A.init();
   if (e.pointerType === 'mouse' || state !== 'play' || touch.id !== null) return;
   if (e.target.closest('button')) return;
   const p = stagePt(e);
-  Object.assign(touch, { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y });
-  const st = $('#stick'); st.hidden = false; st.style.left = `calc(${p.x} * var(--u))`; st.style.top = `calc(${p.y} * var(--u))`;
-  $('#knob').style.transform = '';
+  Object.assign(touch, { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y, turned: false });
 });
 stage.addEventListener('pointermove', e => {
   if (e.pointerId !== touch.id) return;
-  const p = stagePt(e); touch.x = p.x; touch.y = p.y;
-  let dx = p.x - touch.ox, dy = p.y - touch.oy; const d = Math.hypot(dx, dy), max = 24;
-  if (d > max) { dx = dx / d * max; dy = dy / d * max; }
-  $('#knob').style.transform = `translate(calc(${dx} * var(--u)), calc(${dy} * var(--u)))`;
+  const p = stagePt(e);
+  const dx = p.x - touch.ox, dy = p.y - touch.oy;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE) return;
+  if (Math.abs(dx) > Math.abs(dy)) { swipeDir.x = Math.sign(dx); swipeDir.y = 0; } else { swipeDir.x = 0; swipeDir.y = Math.sign(dy); }
+  touch.ox = p.x; touch.oy = p.y; touch.turned = true;      // el próximo giro se mide desde acá
 });
-const endTouch = e => { if (e.pointerId !== touch.id) return; touch.id = null; $('#stick').hidden = true; };
+const endTouch = e => {
+  if (e.pointerId !== touch.id) return;
+  if (!touch.turned) { swipeDir.x = 0; swipeDir.y = 0; }             // toque corto: frena
+  touch.id = null;
+};
 stage.addEventListener('pointerup', endTouch);
 stage.addEventListener('pointercancel', endTouch);
+function resetSteer() { swipeDir.x = 0; swipeDir.y = 0; }
 
 function readInput() {
   let x = 0, y = 0;
   if (keys.has('l')) x -= 1; if (keys.has('r')) x += 1;
   if (keys.has('u')) y -= 1; if (keys.has('d')) y += 1;
-  if (touch.id !== null) {
-    const dx = touch.x - touch.ox, dy = touch.y - touch.oy, d = Math.hypot(dx, dy);
-    if (d > 4) { const k = Math.min(1, d / 24); x = dx / d * k; y = dy / d * k; }
-  }
+  if (!x && !y) { x = swipeDir.x; y = swipeDir.y; }
   const m = Math.hypot(x, y);
   if (m > 1) { x /= m; y /= m; }
   input.x = x; input.y = y;
@@ -570,6 +575,7 @@ function spawnCalf(fromBarn) {
   return c;
 }
 function setupLevel(n) {
+  resetSteer();
   G.level = n; G.cfg = levelCfg(n); G.levelDep = 0;
   G.balls = [];
   const m = G.marto;
@@ -691,6 +697,7 @@ function deposit() {
 function hitMarto(src) {
   const m = G.marto;
   if (m.state !== 'ok') return;
+  resetSteer();
   m.state = 'fallen';
   // los enemigos festejan y le dan aire para levantarse
   for (const d of G.dogs) { d.state = 'rest'; d.t = 2.4; }
@@ -1065,7 +1072,7 @@ function banner(title, sub, ms = 2200) {
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => { b.hidden = true; }, ms);
 }
-function show(id) { ['#title', '#intro', '#pause', '#over', '#rank'].forEach(s => { $(s).hidden = s !== id; }); }
+function show(id) { ['#title', '#intro', '#pause', '#over', '#rank'].forEach(s => { $(s).hidden = s !== id; }); document.body.classList.toggle('in-intro', id === '#intro'); }
 
 function goTitle() {
   ensureLayout();
@@ -1078,12 +1085,13 @@ function goTitle() {
   const best = store.get('bdm_best', 0);
   $('#tBest').hidden = !best; $('#tBest').textContent = `Tu mejor puntaje: ${best}`;
   $('#bIntro').hidden = !store.get('bdm_seen', false);
-  if (matchMedia('(pointer: coarse)').matches) $('#title .hint').textContent = 'Arrastrá el dedo para mover a Marto';
+  if (matchMedia('(pointer: coarse)').matches) $('#title .hint').textContent = 'Deslizá el dedo para dirigir a Marto';
   A.play('intro');
 }
 function startGame() {
   A.init();
   ensureLayout();
+  $('#tap').hidden = true;
   G = newWorld(false);
   setupLevel(1);
   state = 'play';
@@ -1213,6 +1221,7 @@ const SCENES = [
 function startIntro() {
   A.init();
   ensureLayout();
+  $('#tap').hidden = true;
   store.set('bdm_seen', true);
   state = 'intro';
   G = newWorld(true);

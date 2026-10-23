@@ -204,12 +204,8 @@
   #rank h2 { font-size: calc(36 * var(--u)); color: var(--blue2); margin-bottom: calc(6 * var(--u)); }
   .over-actions { grid-column: 1 / -1; }
 
-  /* ---------- controles táctiles ---------- */
-  #stick { position: absolute; width: calc(64 * var(--u)); height: calc(64 * var(--u)); margin: calc(-32 * var(--u)) 0 0 calc(-32 * var(--u)); border-radius: 50%;
-    background: rgba(243,228,189,.22); border: calc(2 * var(--u)) solid rgba(243,228,189,.6); pointer-events: none; z-index: 3; }
-  #knob { position: absolute; left: 50%; top: 50%; width: calc(26 * var(--u)); height: calc(26 * var(--u)); margin: calc(-13 * var(--u)) 0 0 calc(-13 * var(--u));
-    border-radius: 50%; background: rgba(243,228,189,.85); border: calc(2 * var(--u)) solid var(--wood2); }
 
+  .in-intro #mute { bottom: auto; right: auto; top: calc(8 * var(--u)); left: calc(10 * var(--u)); }
   #mute { position: absolute; right: calc(6 * var(--u)); bottom: calc(6 * var(--u)); z-index: 5; font-size: calc(9 * var(--u)); padding: calc(3 * var(--u)) calc(7 * var(--u)) calc(5 * var(--u)); }
   #tap { position: absolute; inset: 0; z-index: 8; background: transparent; cursor: pointer; }
   #tap span {
@@ -281,7 +277,7 @@
           <span><img class="px" data-icon="dorado" alt="">Dorado 50</span>
         </div>
         <div class="btns"><button class="btn" id="mGo">¡A jugar!</button></div>
-        <div class="keys">Flechas o WASD para moverte · en el celu, arrastrá el dedo · P pausa · M sonido</div>
+        <div class="keys">Flechas o WASD para moverte · en el celu, deslizá para doblar y tocá para frenar · P pausa · M sonido</div>
       </div>
     </div>
   </section>
@@ -333,7 +329,6 @@
     </div>
   </section>
 
-  <div id="stick" hidden><div id="knob"></div></div>
   <button class="btn ghost" id="mute" aria-label="Sonido">♪ on</button>
   <div id="tap" aria-label="Tocá para activar el sonido"><span>Tocá la pantalla para activar el sonido ♪</span></div>
   <div id="loading">Cargando el establo…</div>
