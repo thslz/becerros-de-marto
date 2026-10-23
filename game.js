@@ -323,8 +323,16 @@ function buildTracks() {
 
 const A = {
   ctx: null, muted: store.get('bdm_muted', false), track: null, step: 0, nextT: 0, timer: null, tracks: null,
+  get running() { return Boolean(this.ctx && this.ctx.state === 'running'); },
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) {
+      if (this.ctx.state !== 'running') {
+        this.ctx.resume();
+        // Safari en iPhone se destraba recién al reproducir algo dentro del toque
+        const b = this.ctx.createBufferSource(); b.buffer = this.ctx.createBuffer(1, 1, 22050); b.connect(this.ctx.destination); b.start(0);
+      }
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const c = this.ctx = new AC();
@@ -443,6 +451,19 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && sta
 
 const stage = $('#stage');
 function stagePt(e) { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+// el navegador no deja sonar nada hasta que el usuario toca la página: cualquier toque o tecla destraba el audio
+const unlockAudio = () => { A.init(); if (A.running) { ['pointerup', 'touchend', 'click', 'keydown'].forEach(ev => removeEventListener(ev, unlockAudio, true)); } };
+['pointerup', 'touchend', 'click', 'keydown'].forEach(ev => addEventListener(ev, unlockAudio, true));
+// capa transparente sobre toda la pantalla al entrar: el primer toque arranca la música
+// y, si cayó sobre un botón, ese mismo toque lo aprieta
+$('#tap').addEventListener('click', e => {
+  A.init();
+  const tap = e.currentTarget;
+  tap.hidden = true;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const btn = under && under.closest('button');
+  if (btn) btn.click();
+});
 stage.addEventListener('pointerdown', e => {
   A.init();
   if (e.pointerType === 'mouse' || state !== 'play' || touch.id !== null) return;

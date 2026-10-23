@@ -198,6 +198,13 @@
     border-radius: 50%; background: rgba(243,228,189,.85); border: calc(2 * var(--u)) solid var(--wood2); }
 
   #mute { position: absolute; right: calc(6 * var(--u)); bottom: calc(6 * var(--u)); z-index: 5; font-size: calc(9 * var(--u)); padding: calc(3 * var(--u)) calc(7 * var(--u)) calc(5 * var(--u)); }
+  #tap { position: absolute; inset: 0; z-index: 8; background: transparent; cursor: pointer; }
+  #tap span {
+    position: absolute; left: 50%; bottom: calc(12 * var(--u)); transform: translateX(-50%); white-space: nowrap;
+    font-size: calc(9 * var(--u)); font-weight: 600; color: #fff4d6; background: rgba(43,26,13,.75);
+    padding: calc(3 * var(--u)) calc(8 * var(--u)); border-radius: calc(2 * var(--u)); animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 50% { opacity: .35; } }
   #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--parch); font-size: calc(14 * var(--u)); background: var(--sea); z-index: 9; }
 
   /* ---------- celular en vertical: tablero alto y angosto ---------- */
@@ -315,6 +322,7 @@
 
   <div id="stick" hidden><div id="knob"></div></div>
   <button class="btn ghost" id="mute" aria-label="Sonido">♪ on</button>
+  <div id="tap" aria-label="Tocá para activar el sonido"><span>Tocá la pantalla para activar el sonido ♪</span></div>
   <div id="loading">Cargando el establo…</div>
 </div>
 <script src="config.js"></script>
