@@ -470,12 +470,13 @@ const SWIPE = 14;                         // en píxeles del juego
 const swipeDir = { x: 0, y: 0 };
 stage.addEventListener('pointerdown', e => {
   A.init();
-  if (e.pointerType === 'mouse' || state !== 'play' || touch.id !== null) return;
+  if (state !== 'play' || touch.id !== null) return;
   if (e.target.closest('button')) return;
   const p = stagePt(e);
   Object.assign(touch, { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y, turned: false });
 });
-stage.addEventListener('pointermove', e => {
+// el movimiento se escucha en toda la página: si el dedo se sale del tablero, el giro igual cuenta
+addEventListener('pointermove', e => {
   if (e.pointerId !== touch.id) return;
   const p = stagePt(e);
   const dx = p.x - touch.ox, dy = p.y - touch.oy;
@@ -483,13 +484,13 @@ stage.addEventListener('pointermove', e => {
   if (Math.abs(dx) > Math.abs(dy)) { swipeDir.x = Math.sign(dx); swipeDir.y = 0; } else { swipeDir.x = 0; swipeDir.y = Math.sign(dy); }
   touch.ox = p.x; touch.oy = p.y; touch.turned = true;      // el próximo giro se mide desde acá
 });
-const endTouch = e => {
+addEventListener('pointerup', e => {
   if (e.pointerId !== touch.id) return;
-  if (!touch.turned) { swipeDir.x = 0; swipeDir.y = 0; }             // toque corto: frena
+  if (!touch.turned) { swipeDir.x = 0; swipeDir.y = 0; }     // toque corto: frena
   touch.id = null;
-};
-stage.addEventListener('pointerup', endTouch);
-stage.addEventListener('pointercancel', endTouch);
+});
+// si el sistema corta el toque (gesto del navegador, notificación), Marto sigue en la dirección que tenía
+addEventListener('pointercancel', e => { if (e.pointerId === touch.id) touch.id = null; });
 function resetSteer() { swipeDir.x = 0; swipeDir.y = 0; }
 
 function readInput() {

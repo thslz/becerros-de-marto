@@ -28,6 +28,9 @@ git config user.email "$(git -C "$DIR" config user.email || echo 278489183+tobia
 
 rsync -a --delete --exclude '.git' --exclude '.DS_Store' "$DIR/" ./
 touch .nojekyll
+# versión en las URLs del código: así los celulares no se quedan con un game.js viejo guardado
+STAMP="$(date +%s)"
+sed -i '' -E "s#(src=\"(game|config)\.js)(\?v=[0-9]+)?\"#\1?v=$STAMP\"#g" index.html
 
 git add -A
 if git diff --cached --quiet; then
