@@ -9,7 +9,7 @@ const W = 640, H = 360, HUD_H = 26;
 const F = { x0: 22, y0: 36, x1: 618, y1: 348 };          // campo jugable
 const CORRAL = { x0: 22, y0: 256, x1: 136, y1: 348 };    // zona segura
 const GATE = { x0: 62, x1: 102 };                         // tranquera del corral (lado de arriba)
-const BARN = { x: 284, y: 22, door: { x: 307, y: 86 } };
+const BARN = { x: 284, y: 40, door: { x: 307, y: 104 } };
 const SPACING = 17;
 const MIN_Y = HUD_H + 52;                                 // pies de Marto lo más arriba posible sin tapar el HUD
 const MARTO_SPEED = 118;
@@ -234,7 +234,7 @@ function buildBoard() {
   FG = fc;
 
   OBST.length = 0;
-  OBST.push({ x: 286, y: 60, w: 68, h: 20, kind: 'barn' });
+  OBST.push({ x: 286, y: 78, w: 68, h: 20, kind: 'barn' });
   OBST.push({ x: 550, y: 72, w: 22, h: 12, kind: 'well' });
   for (const [x, y] of BALES) OBST.push({ x, y, w: 30, h: 12, kind: 'bale' });
   OBST.push({ x: CORRAL.x0, y: CORRAL.y0 - 3, w: GATE.x0 - CORRAL.x0, h: 5, kind: 'fence' });
@@ -380,6 +380,7 @@ const A = {
       case 'dash': this.noise(t, 0.35, { vol: 0.16, hp: 300, lp: 1800 }); break;
       case 'bonk': this.tone(180, t, 0.2, { type: 'square', vol: 0.18, slide: 60 }); this.noise(t, 0.12, { vol: 0.2, hp: 100, lp: 900 }); for (let i = 0; i < 3; i++) this.tone(1500 + i * 300, t + 0.15 + i * 0.07, 0.08, { type: 'triangle', vol: 0.06 }); break;
       case 'ball': this.tone(900, t, 0.05, { type: 'triangle', vol: 0.06, slide: 600 }); break;
+      case 'pop': this.noise(t, 0.05, { vol: 0.08, hp: 1500, lp: 6000 }); this.tone(420, t, 0.05, { type: 'triangle', vol: 0.05, slide: 200 }); break;
       case 'level': ['D5', 'F5', 'A5', 'D6', 'r', 'A5', 'D6'].forEach((n, i) => { if (n !== 'r') this.tone(NOTE(n), t + i * 0.11, 0.16, { duty: 0.25, vol: 0.13 }); }); break;
       case 'over': ['A4', 'F4', 'D4', 'A3'].forEach((n, i) => this.tone(NOTE(n), t + i * 0.22, 0.3, { duty: 0.5, vol: 0.13, vib: 5 })); break;
       case 'blip': this.tone(1200, t, 0.02, { duty: 0.125, vol: 0.025 }); break;
@@ -496,11 +497,12 @@ let G = null;
 function levelCfg(n) {
   return {
     goal: 5 + n * 2, maxField: Math.min(3 + n, 8), dogs: Math.min(n, 5),
-    dogSpeed: 64 + n * 4, clownWalk: 52 + n * 6, clownDash: 250 + n * 15, turn: 1.5 + n * 0.25,
-    windup: Math.max(0.35, 0.62 - n * 0.04), balls: n >= 3, gold: Math.min(0.08 + n * 0.015, 0.2),
+    dogSpeed: 64 + n * 4, clownWalk: 40 + n * 5, gold: Math.min(0.08 + n * 0.015, 0.2),
+    throwEvery: Math.max(1.2, 2.8 - n * 0.2), volley: Math.min(3 + Math.floor((n - 1) / 2), 7),
+    ballSpeed: 125 + n * 10,
   };
 }
-const LEVEL_LINES = ['', 'Atrapá los becerros y llevalos al corral', 'Clown se puso nervioso', 'Clown empezó a hacer malabares', 'Llegaron más perros', 'Clown no duerme más', 'Esto ya es personal'];
+const LEVEL_LINES = ['', 'Atrapá los becerros y llevalos al corral', 'Clown se puso nervioso', 'Clown tira más pelotas por tanda', 'Llegaron más perros', 'Clown no duerme más', 'Esto ya es personal'];
 
 function newWorld(demo) {
   return {
@@ -528,7 +530,7 @@ function setupLevel(n) {
     const [x, y] = spots[i % spots.length];
     G.dogs.push({ x, y, h: 16, state: 'patrol', t: rand(1, 3), tx: x, ty: y, face: -1, anim: 0, vx: 0, vy: 0 });
   }
-  G.clown = { x: 520, y: 170, h: 60, vx: 0, vy: 0, state: 'stroll', t: 3, face: 'front', walk: 0, after: [], afterT: 0, dx: 0, dy: 0 };
+  G.clown = { x: 520, y: 170, h: 60, vx: 0, vy: 0, state: 'stroll', t: 3, volley: 0, face: 'front', walk: 0, after: [], afterT: 0, dx: 0, dy: 0 };
   m.inv = Math.max(m.inv, 1.2);
   const field = G.calves.filter(c => c.state !== 'corral').length;
   for (let i = field; i < 3; i++) spawnCalf(false);
@@ -759,78 +761,58 @@ function updateClown(dt) {
   let dm = Math.hypot(m.x - c.x, m.y - c.y);
   switch (c.state) {
     case 'stroll': {
+      // se acerca hasta tenerte a tiro y ahí se queda rondando; tocarlo igual te tumba
       const target = tg ? m : { x: 380, y: 190 };
-      steer(c, target.x, target.y, cfg.clownWalk, dt);
-      if (c.t <= 0 && tg && dm < 230) {
-        if (cfg.balls && Math.random() < 0.4) { c.state = 'juggle'; c.t = 0.8; c.thrown = 0; }
-        else { c.state = 'windup'; c.t = cfg.windup; A.sfx('jingle'); }
-      }
+      if (!tg || dm > 120) steer(c, target.x, target.y, cfg.clownWalk, dt);
+      else if (dm < 80) steer(c, c.x * 2 - m.x, c.y * 2 - m.y, cfg.clownWalk * 0.7, dt);
+      else brake(c, dt, 4);
+      if (c.t <= 0 && tg && dm < 340) { c.state = 'juggle'; c.t = 0.7; c.thrown = 0; c.volley++; A.sfx('jingle'); }
       break;
     }
-    case 'windup':
+    case 'juggle': {
+      // aviso: hace malabares 0.7 s y después larga la tanda
       brake(c, dt, 12);
       c.face = faceFrom(m.x - c.x, m.y - c.y, c.face);
-      if (c.t <= 0) {
-        // apunta adonde va a estar Marto, no adonde está
-        const lead = clamp(dm / cfg.clownDash, 0, 0.5);
-        const px = m.x + m.vx * lead, py = m.y + m.vy * lead, d = Math.hypot(px - c.x, py - c.y) || 1;
-        c.dx = (px - c.x) / d; c.dy = (py - c.y) / d;
-        c.state = 'dash'; c.t = 0.95; A.sfx('dash');
-      }
-      break;
-    case 'dash': {
-      // corrige el rumbo hacia Marto mientras embiste, con giro limitado
-      if (tg) {
-        const want = Math.atan2(m.y + m.vy * 0.12 - c.y, m.x + m.vx * 0.12 - c.x), cur = Math.atan2(c.dy, c.dx);
-        let diff = want - cur; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        const a = cur + clamp(diff, -cfg.turn * dt, cfg.turn * dt);
-        c.dx = Math.cos(a); c.dy = Math.sin(a);
-      }
-      c.vx = c.dx * cfg.clownDash; c.vy = c.dy * cfg.clownDash;
-      const hit = move(c, c.vx * dt, c.vy * dt, 9, { avoidCorral: true });
-      c.afterT -= dt;
-      if (c.afterT <= 0) { c.after.push({ x: c.x, y: c.y, face: c.face, fi: c.fi || 2, life: 0.3 }); c.afterT = 0.035; }
-      if (Math.random() < dt * 30) puff(c.x, c.y, 1, '#d9c79a');
-      if (hit && hit !== 'wall' && hit !== CORRAL_BLOCK) {
-        c.state = 'dizzy'; c.t = 2.3; c.vx = c.vy = 0; G.shake = 0.25; A.sfx('bonk'); puff(c.x, c.y, 10);
-        floatText(c.x, c.y - 66, '¡Mareado!', '#ffe27a');
-      } else if (hit || c.t <= 0) { c.state = 'tired'; c.t = 0.7; }
+      // toda la tanda sale en la misma dirección, una atrás de la otra
+      if (c.t <= 0 && c.thrown === 0) c.aim = Math.atan2(m.y + m.vy * 0.2 - c.y, m.x + m.vx * 0.2 - c.x);
+      if (c.t <= 0 && c.thrown < cfg.volley) {
+        throwBall(c, c.aim, c.thrown);
+        c.thrown++; c.t = 0.09;
+        A.sfx('ball');
+      } else if (c.t <= 0) { c.state = 'stroll'; c.t = cfg.throwEvery * rand(0.85, 1.15); }
       break;
     }
-    case 'tired': brake(c, dt, 5); if (c.t <= 0) { c.state = 'stroll'; c.t = rand(1.6, 2.6); } break;
     case 'laugh':
       if (dm < 90) steer(c, c.x * 2 - m.x, c.y * 2 - m.y, 30, dt); else brake(c, dt);
-      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.2, 3); }
-      break;
-    case 'dizzy': brake(c, dt, 12); if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2, 3); } break;
-    case 'juggle':
-      brake(c, dt, 12);
-      if (c.thrown < 3 && c.t < 0.6 - c.thrown * 0.18) {
-        const a = Math.atan2(m.y - c.y, m.x - c.x) + (c.thrown - 1) * 0.35, s = 130;
-        G.balls.push({ x: c.x, y: c.y, z: 34, vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: 60, life: 3, col: ['#b8322a', '#2f5fa8', '#e6b83c'][c.thrown] });
-        c.thrown++; A.sfx('ball');
-      }
-      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(1.8, 2.8); }
+      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(1.6, 2.4); }
       break;
   }
-  if (c.state !== 'dash') move(c, c.vx * dt, c.vy * dt, 9, { avoidCorral: true });
+  move(c, c.vx * dt, c.vy * dt, 9, { avoidCorral: true });
   const speed = Math.hypot(c.vx, c.vy);
   c.moving = speed > 8;
-  if (c.moving) { c.walk += dt * speed / 12; if (c.state !== 'laugh') c.face = faceFrom(c.vx, c.vy, c.face); }
+  if (c.moving) { c.walk += dt * speed / 12; if (c.state === 'stroll') c.face = faceFrom(c.vx, c.vy, c.face); }
   if (c.state === 'laugh') c.face = 'front';
-  c.after = c.after.filter(a => (a.life -= dt) > 0);
   dm = Math.hypot(m.x - c.x, m.y - c.y);
-  if (tg && m.state === 'ok' && c.state !== 'dizzy' && c.state !== 'laugh' && dm < (c.state === 'dash' ? 18 : 16)) hitMarto(c);
+  if (tg && m.state === 'ok' && c.state !== 'laugh' && dm < 16) hitMarto(c);
+}
+const BALL_COLS = ['#b8322a', '#2f5fa8', '#e6b83c', '#3f8f3a', '#e07a2b'];
+function throwBall(c, a, i) {
+  const s = G.cfg.ballSpeed;
+  G.balls.push({ x: c.x + Math.cos(a) * 8, y: c.y + Math.sin(a) * 4, vx: Math.cos(a) * s, vy: Math.sin(a) * s, z: 26, life: 3.2, col: BALL_COLS[i % BALL_COLS.length] });
+}
+// las pelotas ruedan a ras del piso: los fardos, el granero, el pozo y los cercos las frenan
+function ballBlocked(b) {
+  if (b.x < F.x0 + 4 || b.x > F.x1 - 4 || b.y < F.y0 + 12 || b.y > F.y1 - 2) return true;
+  if (inCorral(b)) return true;
+  return OBST.some(o => b.x > o.x - 2 && b.x < o.x + o.w + 2 && b.y > o.y - 3 && b.y < o.y + o.h + 2);
 }
 function updateBalls(dt) {
   const m = G.marto, tg = martoTargetable();
   for (const b of G.balls) {
-    b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.vz -= 380 * dt; b.life -= dt;
-    if (b.z < 0) { b.z = 0; b.vz = Math.abs(b.vz) * 0.62 + 40; }
-    if (b.x < F.x0 + 4 || b.x > F.x1 - 4) b.vx *= -1;
-    if (b.y < F.y0 + 10 || b.y > F.y1 - 4) b.vy *= -1;
-    if (inCorral(b)) b.life = 0;
-    if (tg && m.state === 'ok' && b.z < 12 && Math.hypot(b.x - m.x, b.y - m.y) < 10) { b.life = 0; hitMarto(b); }
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    b.z = Math.max(8, b.z - dt * 70);   // baja de las manos a altura de rodilla y sigue derecho
+    if (ballBlocked(b)) { b.life = 0; puff(b.x, b.y, 4, b.col); A.sfx('pop'); continue; }
+    if (tg && m.state === 'ok' && Math.hypot(b.x - m.x, b.y - m.y) < 9) { b.life = 0; hitMarto(b); }
   }
   G.balls = G.balls.filter(b => b.life > 0);
 }
@@ -930,19 +912,20 @@ function drawMarto(m) {
 }
 function clownImg(f) { return f === 'front' ? IMG.clown_front : f === 'back' ? IMG.clown_back : IMG.clown_side; }
 function drawClown(c) {
-  for (const a of c.after) { ctx.globalAlpha = a.life * 1.2; drawFrame(clownImg(a.face), a.fi, a.x, a.y, a.face === 'right'); }
-  ctx.globalAlpha = 1;
-  let ox = 0, dy = 0;
-  if (c.state === 'windup') { ox = Math.round(rand(-1.5, 1.5)); ctx.fillStyle = `rgba(184,50,42,${0.25 + 0.2 * Math.sin(G.time * 30)})`; ctx.beginPath(); ctx.ellipse(c.x, c.y, 16, 5, 0, 0, Math.PI * 2); ctx.fill(); }
-  if (c.state === 'dizzy') ox = Math.round(Math.sin(G.time * 8) * 1.5);
-  if (c.state === 'laugh') dy = Math.sin(G.time * 22) > 0 ? -2 : 0;
+  const dy = c.state === 'laugh' ? (Math.sin(G.time * 22) > 0 ? -2 : 0) : 0;
   c.fi = animFrame(c.moving, c.walk, 1.3);
-  drawFrame(clownImg(c.face), c.fi, c.x + ox, c.y, c.face === 'right', dy);
-  if (c.state === 'windup') bang(c.x, c.y - 66);
-  if (c.state === 'dizzy') stars(c.x, c.y - 58, G.time, 3, 11);
-  if (c.state === 'juggle') {
-    for (let i = 0; i < 3; i++) { const a = G.time * 9 + i * 2.1; ctx.fillStyle = ['#b8322a', '#2f5fa8', '#e6b83c'][i]; ctx.fillRect(Math.round(c.x + Math.cos(a) * 9) - 2, Math.round(c.y - 64 + Math.sin(a) * 6) - 2, 4, 4); }
+  drawFrame(clownImg(c.face), c.fi, c.x, c.y, c.face === 'right', dy);
+  if (c.state === 'laugh') return;
+  // malabares todo el tiempo: tres pelotas en arco sobre las manos (más rápido cuando apunta)
+  const spd = c.state === 'juggle' ? 13 : 7.5;
+  for (let i = 0; i < 3; i++) {
+    const p = G.time * spd + i * Math.PI * 2 / 3;
+    const x = Math.round(c.x - Math.cos(p) * 8), y = Math.round(c.y - 24 - Math.abs(Math.sin(p)) * 16);
+    ctx.fillStyle = '#2b1a0d'; ctx.fillRect(x - 3, y - 2, 7, 5); ctx.fillRect(x - 2, y - 3, 5, 7);
+    ctx.fillStyle = BALL_COLS[i]; ctx.fillRect(x - 2, y - 2, 5, 5);
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x - 1, y - 1, 1, 1);
   }
+  if (c.state === 'juggle' && c.thrown === 0) bang(c.x, c.y - 66);
 }
 function drawBall(b) {
   const x = Math.round(b.x), y = Math.round(b.y - b.z);
@@ -1161,7 +1144,7 @@ async function renderBoard(listSel, noteSel, me) {
    ========================================================= */
 const intro = { i: 0, t: 0, cap: '', shown: 0, runners: [] };
 const SCENES = [
-  { d: 4.6, cap: 'En el valle de Martonia, los becerros vivían tranquilos', draw: sceneValley },
+  { d: 4.6, cap: 'En el valle de Catán, los becerros vivían tranquilos', draw: sceneValley },
   { d: 4.2, cap: 'Marto los cuidaba como a nadie', draw: sceneMarto, card: ['MARTO', 'el pastor del valle', 'left'], enter: () => A.sfx('whoosh') },
   { d: 0.9, cap: '', draw: sceneFlash, enter: () => A.sfx('thunder') },
   { d: 4.4, cap: 'Hasta que una noche llegó Clown y abrió el corral', draw: sceneClown, card: ['CLOWN', 'el bufón del caos', 'right'], enter: () => { A.sfx('laugh'); setTimeout(() => A.sfx('laugh'), 900); } },
@@ -1176,6 +1159,7 @@ function startIntro() {
   G = newWorld(true);
   for (let i = 0; i < 7; i++) spawnCalf(false);
   show('#intro');
+  $('#hud').hidden = true; $('#banner').hidden = true;
   $('#mission').hidden = true;
   $('#skip').hidden = false;
   A.play('intro');
@@ -1302,7 +1286,7 @@ function sceneVs(t) {
   const ml = IMG.marto_head_side, cl = IMG.clown_head_side, k = ease(t / 0.4);
   const mx = Math.round(-ml.width + (40 + ml.width) * k), cx = Math.round(W - (40 + cl.width) * k), y = H - 26 - ml.height;
   ctx.save(); ctx.translate(mx + ml.width, y); ctx.scale(-1, 1); ctx.drawImage(ml, 0, 0); ctx.restore();
-  ctx.save(); ctx.translate(cx + cl.width, y); ctx.scale(-1, 1); ctx.drawImage(cl, 0, 0); ctx.restore();
+  ctx.drawImage(cl, cx, y);   // de perfil ya mira a la izquierda: queda enfrentado a Marto
   if (t > 0.45) {
     const s = 1 + Math.max(0, 0.6 - (t - 0.45) * 3), sh = t < 0.8 ? 3 : 0;
     ctx.save(); ctx.translate(320 + rand(-sh, sh), 150 + rand(-sh, sh)); ctx.scale(s, s);
@@ -1359,6 +1343,10 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(1 / 30, (now - last) / 1000);
   last = now;
+  step(dt);
+  requestAnimationFrame(frame);
+}
+function step(dt) {
   try {
     switch (state) {
       case 'title': updateDemo(dt); renderWorld(); break;
@@ -1368,7 +1356,6 @@ function frame(now) {
       case 'paused': case 'over': renderWorld(); break;
     }
   } catch (err) { console.error(err); }
-  requestAnimationFrame(frame);
 }
 
 Promise.all([loadAssets(), document.fonts ? document.fonts.load('40px "Jacquard 24"').catch(() => {}) : null, document.fonts ? document.fonts.load('700 10px "Pixelify Sans"').catch(() => {}) : null])
@@ -1381,5 +1368,5 @@ Promise.all([loadAssets(), document.fonts ? document.fonts.load('40px "Jacquard 
   })
   .catch(err => { $('#loading').textContent = 'No pude cargar el juego: ' + err.message; });
 
-window.__bdm = { get G() { return G; }, get state() { return state; }, startGame, startIntro, togglePause };
+window.__bdm = { get G() { return G; }, get state() { return state; }, startGame, startIntro, togglePause, tick(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) step(dt); } };
 })();
