@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Los Becerros de Marto</title>
+<meta name="description" content="Atrapá los becerros, esquivá a Clown y a sus perros y llevalos al corral">
+<meta property="og:title" content="Los Becerros de Marto">
+<meta property="og:description" content="Atrapá los becerros, esquivá a Clown y a sus perros y llevalos al corral">
+<meta property="og:image" content="assets/marto_big.png">
+<link rel="icon" href="assets/marto_icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --u: 1px;
+    --ink: #3b2414;
+    --parch: #f3e4bd;
+    --parch2: #e2c98f;
+    --wood: #8a5a2b;
+    --wood2: #5b3a1c;
+    --red: #b8322a;
+    --red2: #8c2620;
+    --blue: #2f5fa8;
+    --blue2: #1f4280;
+    --gold: #e6b83c;
+    --sea: #1d3347;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sea: #1d3347; } }
+  :root[data-theme="dark"] { --sea: #1d3347; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--sea) radial-gradient(circle at 50% 40%, #2a4a66 0%, var(--sea) 70%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Pixelify Sans', ui-monospace, monospace; color: var(--ink);
+    font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  #stage {
+    position: relative; overflow: hidden;
+    width: calc(640 * var(--u)); height: calc(360 * var(--u));
+    box-shadow: 0 0 0 calc(2 * var(--u)) #10202e, 0 calc(6 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.5);
+  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .px { image-rendering: pixelated; image-rendering: crisp-edges; }
+  [hidden] { display: none !important; }
+
+  /* ---------- piezas comunes ---------- */
+  .screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .card {
+    position: relative;
+    background:
+      radial-gradient(circle at 20% 15%, rgba(255,255,255,.35), transparent 45%),
+      linear-gradient(180deg, var(--parch), var(--parch2));
+    border: calc(3 * var(--u)) solid var(--wood2);
+    outline: calc(2 * var(--u)) solid var(--gold); outline-offset: calc(-6 * var(--u));
+    box-shadow: 0 calc(4 * var(--u)) 0 #2b1a0d, 0 calc(10 * var(--u)) calc(24 * var(--u)) rgba(0,0,0,.45);
+    padding: calc(14 * var(--u)) calc(18 * var(--u));
+    border-radius: calc(3 * var(--u));
+    text-align: center;
+  }
+  h1, h2, h3, .gothic { font-family: 'Jacquard 24', 'Pixelify Sans', serif; font-weight: 400; margin: 0; }
+  .btns { display: flex; gap: calc(8 * var(--u)); justify-content: center; flex-wrap: wrap; }
+  .btn {
+    font: 700 calc(12 * var(--u)) 'Pixelify Sans', monospace; color: var(--parch); cursor: pointer;
+    background: linear-gradient(180deg, #cf4136, var(--red));
+    border: calc(2 * var(--u)) solid var(--wood2); border-radius: calc(2 * var(--u));
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--red2), 0 calc(2 * var(--u)) 0 #2b1a0d;
+    padding: calc(6 * var(--u)) calc(14 * var(--u)) calc(8 * var(--u));
+    text-shadow: 0 calc(1 * var(--u)) 0 #4a120e;
+  }
+  .btn:hover, .btn:focus-visible { filter: brightness(1.12); outline: none; }
+  .btn:active { transform: translateY(calc(2 * var(--u))); box-shadow: inset 0 calc(-1 * var(--u)) 0 var(--red2); }
+  .btn.alt { background: linear-gradient(180deg, #3d72c2, var(--blue)); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--blue2), 0 calc(2 * var(--u)) 0 #2b1a0d; text-shadow: 0 calc(1 * var(--u)) 0 #10264d; }
+  .btn.ghost { background: #d9bf83; color: var(--ink); text-shadow: none; box-shadow: inset 0 calc(-3 * var(--u)) 0 #b99a5c, 0 calc(2 * var(--u)) 0 #2b1a0d; }
+  .btn:disabled { filter: grayscale(.6) brightness(.85); cursor: default; }
+
+  /* ---------- título ---------- */
+  #title { background: linear-gradient(180deg, rgba(20,30,50,.15), rgba(20,30,50,.55)); }
+  .title-wrap { position: relative; display: flex; align-items: flex-end; gap: calc(6 * var(--u)); }
+  .hero { height: calc(170 * var(--u)); filter: drop-shadow(0 calc(4 * var(--u)) 0 rgba(0,0,0,.35)); }
+  .hero-l { animation: bob 1.2s ease-in-out infinite; }
+  .hero-r { animation: bob 1.2s ease-in-out .6s infinite; }
+  @keyframes bob { 50% { transform: translateY(calc(-4 * var(--u))); } }
+  .title-card { width: calc(300 * var(--u)); margin-bottom: calc(14 * var(--u)); }
+  .kicker { font-size: calc(9 * var(--u)); letter-spacing: .08em; text-transform: uppercase; color: var(--wood); }
+  #title h1 {
+    font-size: calc(46 * var(--u)); line-height: .9; color: var(--red);
+    text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--wood2), 0 0 calc(1 * var(--u)) var(--wood2);
+    margin: calc(6 * var(--u)) 0 calc(10 * var(--u));
+  }
+  .hint { font-size: calc(8 * var(--u)); color: var(--wood); margin: calc(10 * var(--u)) 0 0; }
+  .best { font-size: calc(9 * var(--u)); color: var(--wood2); margin: calc(6 * var(--u)) 0 0; font-weight: 600; }
+
+  /* ---------- intro ---------- */
+  #intro { display: block; }
+  #cap {
+    position: absolute; left: 50%; bottom: calc(5 * var(--u)); transform: translateX(-50%);
+    width: calc(600 * var(--u)); white-space: nowrap;
+    font: 600 calc(13 * var(--u)) 'Pixelify Sans', monospace; color: #fff4d6; text-align: center;
+    text-shadow: calc(1 * var(--u)) calc(1 * var(--u)) 0 #000, calc(-1 * var(--u)) calc(1 * var(--u)) 0 #000, calc(1 * var(--u)) calc(-1 * var(--u)) 0 #000, calc(-1 * var(--u)) calc(-1 * var(--u)) 0 #000;
+  }
+  #cap:empty { display: none; }
+  #skip { position: absolute; right: calc(10 * var(--u)); top: calc(8 * var(--u)); font-size: calc(9 * var(--u)); padding: calc(3 * var(--u)) calc(8 * var(--u)) calc(5 * var(--u)); z-index: 3; }
+  #namecard {
+    position: absolute; top: calc(70 * var(--u)); padding: calc(4 * var(--u)) calc(26 * var(--u)) calc(6 * var(--u));
+    color: #fff; transform: skewX(-14deg); opacity: 0; transition: opacity .2s, transform .35s cubic-bezier(.2,1.4,.4,1);
+    border-top: calc(3 * var(--u)) solid #fff; border-bottom: calc(3 * var(--u)) solid #fff;
+  }
+  #namecard.left { left: calc(-10 * var(--u)); background: var(--blue); }
+  #namecard.right { right: calc(-10 * var(--u)); background: var(--red); text-align: right; }
+  #namecard.left:not(.on) { transform: skewX(-14deg) translateX(-100%); }
+  #namecard.right:not(.on) { transform: skewX(-14deg) translateX(100%); }
+  #namecard.on { opacity: 1; }
+  #namecard .n { font-family: 'Jacquard 24', serif; font-size: calc(48 * var(--u)); line-height: 1; display: block; transform: skewX(14deg); text-shadow: calc(3 * var(--u)) calc(3 * var(--u)) 0 rgba(0,0,0,.4); }
+  #namecard .s { font-size: calc(11 * var(--u)); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; display: block; transform: skewX(14deg); color: var(--gold); }
+  #mission { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,20,35,.45); }
+  #mission .card { width: calc(400 * var(--u)); text-align: left; }
+  #mission h2 { font-size: calc(34 * var(--u)); color: var(--red); text-align: center; text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--wood2); }
+  #mission ul { list-style: none; padding: 0; margin: calc(6 * var(--u)) 0 calc(10 * var(--u)); font-size: calc(10.5 * var(--u)); line-height: 1.35; }
+  #mission li { display: flex; gap: calc(7 * var(--u)); align-items: center; padding: calc(3 * var(--u)) 0; border-bottom: calc(1 * var(--u)) dashed rgba(91,58,28,.35); }
+  #mission li b { color: var(--red2); }
+  #mission .ico { width: calc(22 * var(--u)); flex: none; text-align: center; font-size: calc(14 * var(--u)); }
+  #mission .ico img { width: calc(22 * var(--u)); }
+  .values { display: flex; justify-content: center; gap: calc(14 * var(--u)); font-size: calc(10 * var(--u)); font-weight: 700; margin-bottom: calc(10 * var(--u)); }
+  .values span { display: flex; align-items: center; gap: calc(4 * var(--u)); }
+  .values img { width: calc(26 * var(--u)); }
+  .keys { text-align: center; font-size: calc(8.5 * var(--u)); color: var(--wood); margin-top: calc(8 * var(--u)); }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: absolute; left: 0; right: 0; top: 0; height: calc(26 * var(--u));
+    display: flex; align-items: center; gap: calc(6 * var(--u)); padding: 0 calc(8 * var(--u));
+    background: linear-gradient(180deg, #7a4f26, #5b3a1c); border-bottom: calc(2 * var(--u)) solid #2b1a0d;
+    font-size: calc(11 * var(--u)); font-weight: 700; z-index: 2;
+  }
+  .plate {
+    background: linear-gradient(180deg, var(--parch), var(--parch2)); border: calc(1.5 * var(--u)) solid #2b1a0d;
+    border-radius: calc(2 * var(--u)); height: calc(18 * var(--u)); padding: 0 calc(7 * var(--u));
+    display: flex; align-items: center; gap: calc(4 * var(--u)); white-space: nowrap;
+  }
+  .plate img { height: calc(12 * var(--u)); }
+  #hScore { margin-left: auto; margin-right: auto; font-size: calc(13 * var(--u)); min-width: calc(80 * var(--u)); justify-content: center; }
+  #hLives img { height: calc(10 * var(--u)); }
+  #hLives img.off { opacity: .25; filter: grayscale(1); }
+  #hTrail.hot { background: linear-gradient(180deg, #fff1b0, var(--gold)); }
+  #bPause { font-size: calc(10 * var(--u)); padding: calc(2 * var(--u)) calc(8 * var(--u)) calc(4 * var(--u)); }
+
+  /* ---------- banner de nivel ---------- */
+  #banner { position: absolute; left: 0; right: 0; top: calc(120 * var(--u)); text-align: center; pointer-events: none; z-index: 2; }
+  #banner .bt { display: inline-block; font-family: 'Jacquard 24', serif; font-size: calc(44 * var(--u)); color: var(--gold); padding: 0 calc(30 * var(--u));
+    background: linear-gradient(90deg, transparent, rgba(43,26,13,.85) 15%, rgba(43,26,13,.85) 85%, transparent);
+    text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 #000; animation: pop .45s cubic-bezier(.2,1.6,.4,1); }
+  #banner .bs { font-size: calc(12 * var(--u)); font-weight: 700; color: #fff4d6; text-shadow: calc(1 * var(--u)) calc(1 * var(--u)) 0 #000; margin-top: calc(4 * var(--u)); }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } }
+
+  /* ---------- pausa / fin / ranking ---------- */
+  #pause, #over, #rank { background: rgba(15,20,35,.55); z-index: 4; }
+  #pause .card { width: calc(220 * var(--u)); }
+  #pause h2 { font-size: calc(40 * var(--u)); color: var(--red); margin-bottom: calc(10 * var(--u)); }
+  .over-card { width: calc(470 * var(--u)); display: grid; grid-template-columns: 1fr 1fr; gap: calc(14 * var(--u)); text-align: center; }
+  .over-card h2 { font-size: calc(36 * var(--u)); color: var(--red); text-shadow: calc(2 * var(--u)) calc(2 * var(--u)) 0 var(--wood2); }
+  .big-score { font-size: calc(34 * var(--u)); font-weight: 700; color: var(--wood2); line-height: 1.1; }
+  .stats { font-size: calc(9.5 * var(--u)); margin: calc(2 * var(--u)) 0 calc(10 * var(--u)); color: var(--wood); }
+  form { display: flex; gap: calc(5 * var(--u)); justify-content: center; }
+  input {
+    font: 600 calc(12 * var(--u)) 'Pixelify Sans', monospace; color: var(--ink); width: calc(120 * var(--u));
+    background: #fff8e4; border: calc(2 * var(--u)) solid var(--wood2); border-radius: calc(2 * var(--u)); padding: calc(4 * var(--u)) calc(6 * var(--u));
+    user-select: text; -webkit-user-select: text;
+  }
+  input:focus { outline: calc(2 * var(--u)) solid var(--gold); }
+  form .btn { padding: calc(4 * var(--u)) calc(10 * var(--u)) calc(6 * var(--u)); }
+  .msg { font-size: calc(9 * var(--u)); min-height: calc(12 * var(--u)); margin: calc(6 * var(--u)) 0; color: var(--wood); }
+  .side h3 { font-size: calc(26 * var(--u)); color: var(--blue2); margin-bottom: calc(4 * var(--u)); }
+  .board { list-style: none; margin: 0; padding: 0; font-size: calc(10 * var(--u)); text-align: left; counter-reset: r; }
+  .board li { display: grid; grid-template-columns: calc(20 * var(--u)) 1fr auto; gap: calc(4 * var(--u)); padding: calc(2.5 * var(--u)) calc(5 * var(--u)); border-radius: calc(2 * var(--u)); }
+  .board li:nth-child(odd) { background: rgba(91,58,28,.09); }
+  .board li .r { font-weight: 700; color: var(--wood); }
+  .board li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board li .sc { font-weight: 700; }
+  .board li:nth-child(1) .r { color: #c99a12; }
+  .board li.me { background: var(--gold) !important; }
+  .board .empty { display: block; text-align: center; color: var(--wood); padding: calc(10 * var(--u)) 0; }
+  .note { font-size: calc(8 * var(--u)); color: var(--wood); margin-top: calc(4 * var(--u)); }
+  #rank .card { width: calc(280 * var(--u)); }
+  #rank h2 { font-size: calc(36 * var(--u)); color: var(--blue2); margin-bottom: calc(6 * var(--u)); }
+  .over-actions { grid-column: 1 / -1; }
+
+  /* ---------- controles táctiles ---------- */
+  #stick { position: absolute; width: calc(64 * var(--u)); height: calc(64 * var(--u)); margin: calc(-32 * var(--u)) 0 0 calc(-32 * var(--u)); border-radius: 50%;
+    background: rgba(243,228,189,.22); border: calc(2 * var(--u)) solid rgba(243,228,189,.6); pointer-events: none; z-index: 3; }
+  #knob { position: absolute; left: 50%; top: 50%; width: calc(26 * var(--u)); height: calc(26 * var(--u)); margin: calc(-13 * var(--u)) 0 0 calc(-13 * var(--u));
+    border-radius: 50%; background: rgba(243,228,189,.85); border: calc(2 * var(--u)) solid var(--wood2); }
+
+  #mute { position: absolute; right: calc(6 * var(--u)); bottom: calc(6 * var(--u)); z-index: 5; font-size: calc(9 * var(--u)); padding: calc(3 * var(--u)) calc(7 * var(--u)) calc(5 * var(--u)); }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--parch); font-size: calc(14 * var(--u)); background: var(--sea); z-index: 9; }
+  #rotate { display: none; }
+  @media (orientation: portrait) and (max-width: 760px) {
+    #rotate { display: block; position: fixed; left: 0; right: 0; bottom: 18px; text-align: center; color: var(--parch); font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="640" height="360"></canvas>
+
+  <section id="title" class="screen" hidden>
+    <div class="title-wrap">
+      <img class="hero hero-l px" src="assets/marto_big.png" alt="Marto">
+      <div class="card title-card">
+        <div class="kicker">Una aventura en el valle de Martonia</div>
+        <h1>Los Becerros<br>de Marto</h1>
+        <div class="btns">
+          <button class="btn" id="bPlay">Jugar</button>
+          <button class="btn alt" id="bRank">Ranking</button>
+          <button class="btn ghost" id="bIntro">Ver intro</button>
+        </div>
+        <p class="best" id="tBest" hidden></p>
+        <p class="hint">Flechas o WASD para moverte · P pausa · M sonido</p>
+      </div>
+      <img class="hero hero-r px" src="assets/clown_big.png" alt="Clown">
+    </div>
+  </section>
+
+  <section id="intro" class="screen" hidden>
+    <div id="namecard"><span class="n"></span><span class="s"></span></div>
+    <div id="cap"></div>
+    <button class="btn ghost" id="skip">Saltar ›</button>
+    <div id="mission" hidden>
+      <div class="card">
+        <h2>Tu misión</h2>
+        <ul>
+          <li><span class="ico"><img class="px" data-icon="pinto" alt=""></span><span><b>Atrapá los becerros</b> que andan sueltos: se suman en fila detrás de Marto</span></li>
+          <li><span class="ico">⌂</span><span><b>Llevalos al corral</b> para sumar puntos. Cuanto más larga la fila, más multiplicás</span></li>
+          <li><span class="ico"><img class="px" data-icon="dog" alt=""></span><span><b>Esquivá a Clown y a sus perros</b>: si te tocan, Marto se cae y pierde toda la fila</span></li>
+          <li><span class="ico">✦</span><span>Si Clown embiste contra un fardo o el pozo, <b>queda mareado</b> un rato</span></li>
+        </ul>
+        <div class="values">
+          <span><img class="px" data-icon="pinto" alt="">Pinto 10</span>
+          <span><img class="px" data-icon="marron" alt="">Marrón 20</span>
+          <span><img class="px" data-icon="dorado" alt="">Dorado 50</span>
+        </div>
+        <div class="btns"><button class="btn" id="mGo">¡A jugar!</button></div>
+        <div class="keys">Flechas o WASD para moverte · en el celu, arrastrá el dedo · P pausa · M sonido</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="hud" hidden>
+    <div class="plate" id="hLevel">Nivel 1</div>
+    <div class="plate" id="hLives"></div>
+    <div class="plate" id="hGoal"></div>
+    <div class="plate" id="hScore">0</div>
+    <div class="plate" id="hTrail"><img class="px" data-icon="pinto" alt=""><span>x0</span></div>
+    <button class="btn ghost" id="bPause" aria-label="Pausa">II</button>
+  </div>
+  <div id="banner" hidden><div class="bt"></div><div class="bs"></div></div>
+
+  <section id="pause" class="screen" hidden>
+    <div class="card">
+      <h2>Pausa</h2>
+      <div class="btns"><button class="btn" id="pResume">Seguir</button><button class="btn ghost" id="pQuit">Salir</button></div>
+    </div>
+  </section>
+
+  <section id="over" class="screen" hidden>
+    <div class="card over-card">
+      <div>
+        <h2 id="oTitle">Fin del juego</h2>
+        <div class="big-score" id="oScore">0</div>
+        <p class="stats" id="oStats"></p>
+        <form id="oForm" autocomplete="off">
+          <input id="oName" maxlength="16" placeholder="Tu nombre" required>
+          <button class="btn alt" id="oSave">Guardar</button>
+        </form>
+        <p class="msg" id="oMsg"></p>
+      </div>
+      <div class="side">
+        <h3>Ranking</h3>
+        <ol class="board" id="oBoard"></ol>
+        <p class="note" id="oNote"></p>
+      </div>
+      <div class="btns over-actions"><button class="btn" id="oAgain">Jugar de nuevo</button><button class="btn ghost" id="oHome">Inicio</button></div>
+    </div>
+  </section>
+
+  <section id="rank" class="screen" hidden>
+    <div class="card">
+      <h2>Ranking</h2>
+      <ol class="board" id="rBoard"></ol>
+      <p class="note" id="rNote"></p>
+      <div class="btns" style="margin-top: calc(10 * var(--u))"><button class="btn ghost" id="rBack">Volver</button></div>
+    </div>
+  </section>
+
+  <div id="stick" hidden><div id="knob"></div></div>
+  <button class="btn ghost" id="mute" aria-label="Sonido">♪ on</button>
+  <div id="loading">Cargando el establo…</div>
+</div>
+<div id="rotate">Girá el celu para jugar mejor</div>
+<script src="config.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
