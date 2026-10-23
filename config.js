@@ -2,6 +2,6 @@
 // viaja al navegador igual, y lo que protege la tabla son las políticas RLS de schema.sql
 window.BECERROS_CONFIG = {
   supabaseUrl: 'https://xqydlmxhkhmghdplhsvq.supabase.co',
-  supabaseAnonKey: '',
+  supabaseAnonKey: 'sb_publishable_DGJaxzpVISloMAljgLrnfg_OEL0ju5G',
   table: 'becerros_scores',
 };

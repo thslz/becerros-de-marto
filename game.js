@@ -11,6 +11,7 @@ const CORRAL = { x0: 22, y0: 256, x1: 136, y1: 348 };    // zona segura
 const GATE = { x0: 62, x1: 102 };                         // tranquera del corral (lado de arriba)
 const BARN = { x: 284, y: 22, door: { x: 307, y: 86 } };
 const SPACING = 17;
+const MIN_Y = HUD_H + 52;                                 // pies de Marto lo más arriba posible sin tapar el HUD
 const MARTO_SPEED = 118;
 
 const canvas = document.getElementById('game');
@@ -468,7 +469,8 @@ function move(e, dx, dy, r, opts = {}) {
   let hit = null;
   for (const o of OBST) if (resolveRect(e, r, o)) hit = hit || o;
   if (opts.avoidCorral && resolveRect(e, r + 2, CORRAL_BLOCK)) hit = hit || CORRAL_BLOCK;
-  const minY = Math.max(F.y0 + 8, HUD_H + (e.h || 16) - 2);
+  // todos comparten el mismo borde de arriba que Marto, así no quedan becerros fuera de su alcance
+  const minY = Math.max(MIN_Y, HUD_H + (e.h || 16) - 2);
   const x0 = F.x0 + r + 2, x1 = F.x1 - r - 2, y1 = F.y1 - 4;
   if (e.x < x0 || e.x > x1 || e.y < minY || e.y > y1) hit = hit || 'wall';
   e.x = clamp(e.x, x0, x1); e.y = clamp(e.y, minY, y1);
@@ -477,7 +479,7 @@ function move(e, dx, dy, r, opts = {}) {
 }
 function randomFieldPoint() {
   for (let i = 0; i < 40; i++) {
-    const p = { x: rand(F.x0 + 20, F.x1 - 20), y: rand(F.y0 + 30, F.y1 - 12) };
+    const p = { x: rand(F.x0 + 20, F.x1 - 20), y: rand(MIN_Y + 4, F.y1 - 12) };
     if (p.x < CORRAL.x1 + 14 && p.y > CORRAL.y0 - 16) continue;
     if (OBST.some(o => p.x > o.x - 12 && p.x < o.x + o.w + 12 && p.y > o.y - 12 && p.y < o.y + o.h + 12)) continue;
     return p;
@@ -494,8 +496,8 @@ let G = null;
 function levelCfg(n) {
   return {
     goal: 5 + n * 2, maxField: Math.min(3 + n, 8), dogs: Math.min(n, 5),
-    dogSpeed: 64 + n * 4, clownWalk: 34 + n * 6, clownDash: 225 + n * 15,
-    windup: Math.max(0.45, 0.85 - n * 0.06), balls: n >= 3, gold: Math.min(0.08 + n * 0.015, 0.2),
+    dogSpeed: 64 + n * 4, clownWalk: 52 + n * 6, clownDash: 250 + n * 15, turn: 1.5 + n * 0.25,
+    windup: Math.max(0.35, 0.62 - n * 0.04), balls: n >= 3, gold: Math.min(0.08 + n * 0.015, 0.2),
   };
 }
 const LEVEL_LINES = ['', 'Atrapá los becerros y llevalos al corral', 'Clown se puso nervioso', 'Clown empezó a hacer malabares', 'Llegaron más perros', 'Clown no duerme más', 'Esto ya es personal'];
@@ -571,7 +573,7 @@ function updateMarto(dt) {
   if (m.moving) {
     m.walk += dt * (Math.hypot(m.vx, m.vy) / 12);
     const ax = Math.abs(m.vx), ay = Math.abs(m.vy);
-    m.dir = ax > ay * 1.05 ? (m.vx > 0 ? 'right' : 'left') : (m.vy > 0 ? 'front' : 'back');
+    if (ax + ay > 0) m.dir = faceFrom(m.vx, m.vy, m.dir);
     m.dustT -= dt;
     if (m.dustT <= 0) { puff(m.x, m.y, 1); m.dustT = 0.16; }
   }
@@ -613,7 +615,17 @@ function deposit() {
   const mult = Math.min(3, 1 + 0.25 * (n - 1));
   const pts = Math.round(base * mult);
   G.score += pts; G.levelDep += n; G.total += n;
-  m.followers.forEach(c => { c.state = 'corral'; c.t = rand(0.5, 2); c.tx = rand(CORRAL.x0 + 12, CORRAL.x1 - 12); c.ty = rand(CORRAL.y0 + 16, CORRAL.y1 - 8); });
+  // los que vienen atrás todavía están afuera: entran por la tranquera
+  m.followers.forEach(c => {
+    c.state = 'corral'; c.idle = 0; c.t = rand(2, 4);
+    c.tx = rand(CORRAL.x0 + 12, CORRAL.x1 - 12); c.ty = rand(CORRAL.y0 + 16, CORRAL.y1 - 8);
+    c.path = [];
+    if (!inCorral(c)) {
+      const gx = (GATE.x0 + GATE.x1) / 2 + rand(-6, 6);
+      if (c.y > CORRAL.y0 - 12) c.path.push({ x: c.x, y: CORRAL.y0 - 14 });   // rodea el cerco por arriba
+      c.path.push({ x: gx, y: CORRAL.y0 - 10 }, { x: gx, y: CORRAL.y0 + 16 });
+    }
+  });
   m.followers = [];
   m.trail = [{ x: m.x, y: m.y }];
   floatText(m.x, m.y - 62, `+${pts}`, '#ffe27a', true);
@@ -681,12 +693,17 @@ function updateCalves(dt) {
       }
       if (vx || vy) { const hit = move(c, vx * sp * dt, vy * sp * dt, 6, { avoidCorral: true }); if (hit && c.idle <= 0 && Math.random() < 0.05) c.t = 0; }
     } else if (c.state === 'corral') {
-      if (c.idle > 0) c.idle -= dt;
+      if (c.path && c.path.length) {
+        const w = c.path[0], dd = Math.hypot(w.x - c.x, w.y - c.y);
+        if (dd < 3) c.path.shift();
+        else { vx = (w.x - c.x) / dd; vy = (w.y - c.y) / dd; sp = 70; c.x += vx * sp * dt; c.y += vy * sp * dt; }
+      } else if (c.idle > 0) c.idle -= dt;
       else {
         const dd = Math.hypot(c.tx - c.x, c.ty - c.y);
         if (dd < 3 || c.t <= 0) { c.tx = rand(CORRAL.x0 + 12, CORRAL.x1 - 12); c.ty = rand(CORRAL.y0 + 16, CORRAL.y1 - 8); c.t = rand(2, 4); c.idle = rand(1, 4); }
         else { vx = (c.tx - c.x) / dd; vy = (c.ty - c.y) / dd; sp = 18; c.x += vx * sp * dt; c.y += vy * sp * dt; }
       }
+      if (!c.path || !c.path.length) { c.x = clamp(c.x, CORRAL.x0 + 10, CORRAL.x1 - 10); c.y = clamp(c.y, CORRAL.y0 + 14, CORRAL.y1 - 6); }
     }
     c.moving = Math.abs(vx) + Math.abs(vy) > 0.01 && sp > 0;
     if (c.moving) { c.anim += dt * (c.state === 'scared' ? 16 : 9); if (Math.abs(vx) > 0.05) c.face = vx > 0 ? 1 : -1; }
@@ -721,67 +738,89 @@ function updateDogs(dt) {
     if (tg && m.state === 'ok' && dm < 13) hitMarto(d);
   }
 }
-function faceFrom(vx, vy) { return Math.abs(vx) > Math.abs(vy) * 1.05 ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'front' : 'back'); }
+// con histéresis: no salta entre frente y perfil en cada diagonal
+function faceFrom(vx, vy, cur) {
+  const ax = Math.abs(vx), ay = Math.abs(vy);
+  const side = cur === 'left' || cur === 'right';
+  const horiz = side ? ax > ay * 0.6 : ax > ay * 1.6;
+  return horiz ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'front' : 'back');
+}
+// acelera de a poco hacia (tx, ty) en vez de girar en seco
+function steer(c, tx, ty, speed, dt, k = 5) {
+  const d = Math.hypot(tx - c.x, ty - c.y) || 1;
+  c.vx += ((tx - c.x) / d * speed - c.vx) * Math.min(1, dt * k);
+  c.vy += ((ty - c.y) / d * speed - c.vy) * Math.min(1, dt * k);
+}
+function brake(c, dt, k = 8) { c.vx *= Math.max(0, 1 - dt * k); c.vy *= Math.max(0, 1 - dt * k); }
 function updateClown(dt) {
   const c = G.clown, m = G.marto, cfg = G.cfg, tg = martoTargetable();
   if (!c) return;
   c.t -= dt;
-  const dm = Math.hypot(m.x - c.x, m.y - c.y);
-  let sp = 0, vx = 0, vy = 0;
+  let dm = Math.hypot(m.x - c.x, m.y - c.y);
   switch (c.state) {
     case 'stroll': {
       const target = tg ? m : { x: 380, y: 190 };
-      const d = Math.hypot(target.x - c.x, target.y - c.y);
-      if (d > 20) { vx = (target.x - c.x) / d; vy = (target.y - c.y) / d; sp = cfg.clownWalk; }
-      if (c.t <= 0 && tg && dm < 280) {
+      steer(c, target.x, target.y, cfg.clownWalk, dt);
+      if (c.t <= 0 && tg && dm < 230) {
         if (cfg.balls && Math.random() < 0.4) { c.state = 'juggle'; c.t = 0.8; c.thrown = 0; }
         else { c.state = 'windup'; c.t = cfg.windup; A.sfx('jingle'); }
       }
       break;
     }
     case 'windup':
+      brake(c, dt, 12);
+      c.face = faceFrom(m.x - c.x, m.y - c.y, c.face);
       if (c.t <= 0) {
-        const d = Math.max(1, dm);
-        c.dx = (m.x - c.x) / d; c.dy = (m.y - c.y) / d;
-        c.state = 'dash'; c.t = 0.8; A.sfx('dash');
+        // apunta adonde va a estar Marto, no adonde está
+        const lead = clamp(dm / cfg.clownDash, 0, 0.5);
+        const px = m.x + m.vx * lead, py = m.y + m.vy * lead, d = Math.hypot(px - c.x, py - c.y) || 1;
+        c.dx = (px - c.x) / d; c.dy = (py - c.y) / d;
+        c.state = 'dash'; c.t = 0.95; A.sfx('dash');
       }
-      if (Math.abs(m.x - c.x) > 3) c.face = m.x > c.x ? 'right' : 'left';
       break;
     case 'dash': {
-      const hit = move(c, c.dx * cfg.clownDash * dt, c.dy * cfg.clownDash * dt, 9, { avoidCorral: true });
-      c.walk += dt * 18;
+      // corrige el rumbo hacia Marto mientras embiste, con giro limitado
+      if (tg) {
+        const want = Math.atan2(m.y + m.vy * 0.12 - c.y, m.x + m.vx * 0.12 - c.x), cur = Math.atan2(c.dy, c.dx);
+        let diff = want - cur; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        const a = cur + clamp(diff, -cfg.turn * dt, cfg.turn * dt);
+        c.dx = Math.cos(a); c.dy = Math.sin(a);
+      }
+      c.vx = c.dx * cfg.clownDash; c.vy = c.dy * cfg.clownDash;
+      const hit = move(c, c.vx * dt, c.vy * dt, 9, { avoidCorral: true });
       c.afterT -= dt;
       if (c.afterT <= 0) { c.after.push({ x: c.x, y: c.y, face: c.face, fi: c.fi || 2, life: 0.3 }); c.afterT = 0.035; }
       if (Math.random() < dt * 30) puff(c.x, c.y, 1, '#d9c79a');
       if (hit && hit !== 'wall' && hit !== CORRAL_BLOCK) {
-        c.state = 'dizzy'; c.t = 2.3; G.shake = 0.25; A.sfx('bonk'); puff(c.x, c.y, 10);
+        c.state = 'dizzy'; c.t = 2.3; c.vx = c.vy = 0; G.shake = 0.25; A.sfx('bonk'); puff(c.x, c.y, 10);
         floatText(c.x, c.y - 66, '¡Mareado!', '#ffe27a');
-      } else if (hit || c.t <= 0) { c.state = 'tired'; c.t = 0.9; }
+      } else if (hit || c.t <= 0) { c.state = 'tired'; c.t = 0.7; }
       break;
     }
-    case 'tired': if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2, 3.4); } break;
-    case 'laugh': {
-      const d = Math.max(1, dm);
-      if (d < 90) { vx = (c.x - m.x) / d; vy = (c.y - m.y) / d; sp = 30; }
-      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.6, 3.6); }
+    case 'tired': brake(c, dt, 5); if (c.t <= 0) { c.state = 'stroll'; c.t = rand(1.6, 2.6); } break;
+    case 'laugh':
+      if (dm < 90) steer(c, c.x * 2 - m.x, c.y * 2 - m.y, 30, dt); else brake(c, dt);
+      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.2, 3); }
       break;
-    }
-    case 'dizzy': if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.4, 3.6); } break;
+    case 'dizzy': brake(c, dt, 12); if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2, 3); } break;
     case 'juggle':
+      brake(c, dt, 12);
       if (c.thrown < 3 && c.t < 0.6 - c.thrown * 0.18) {
         const a = Math.atan2(m.y - c.y, m.x - c.x) + (c.thrown - 1) * 0.35, s = 130;
         G.balls.push({ x: c.x, y: c.y, z: 34, vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: 60, life: 3, col: ['#b8322a', '#2f5fa8', '#e6b83c'][c.thrown] });
         c.thrown++; A.sfx('ball');
       }
-      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.2, 3.4); }
+      if (c.t <= 0) { c.state = 'stroll'; c.t = rand(1.8, 2.8); }
       break;
   }
-  if (sp) { move(c, vx * sp * dt, vy * sp * dt, 9, { avoidCorral: true }); c.walk += dt * (4 + sp / 8); }
-  if (c.state === 'stroll' || c.state === 'dash') { const fx = sp ? vx : c.dx, fy = sp ? vy : c.dy; if (fx || fy) c.face = faceFrom(fx, fy); }
-  c.moving = sp > 0 || c.state === 'dash';
-  c.after = c.after.filter(a => (a.life -= dt) > 0);
+  if (c.state !== 'dash') move(c, c.vx * dt, c.vy * dt, 9, { avoidCorral: true });
+  const speed = Math.hypot(c.vx, c.vy);
+  c.moving = speed > 8;
+  if (c.moving) { c.walk += dt * speed / 12; if (c.state !== 'laugh') c.face = faceFrom(c.vx, c.vy, c.face); }
   if (c.state === 'laugh') c.face = 'front';
-  if (tg && m.state === 'ok' && c.state !== 'dizzy' && c.state !== 'laugh' && dm < 15) hitMarto(c);
+  c.after = c.after.filter(a => (a.life -= dt) > 0);
+  dm = Math.hypot(m.x - c.x, m.y - c.y);
+  if (tg && m.state === 'ok' && c.state !== 'dizzy' && c.state !== 'laugh' && dm < (c.state === 'dash' ? 18 : 16)) hitMarto(c);
 }
 function updateBalls(dt) {
   const m = G.marto, tg = martoTargetable();
