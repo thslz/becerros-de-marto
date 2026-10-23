@@ -93,16 +93,26 @@ function buildSprites() {
       p(21, 3, 1, 1, '#1a1010');                          // ojo
     }));
   }
-  SPR.dog = [0, 1, 2, 3].map(f => makeSprite(27, 15, p => {
-    const D = '#7a4a24', K = '#3b2616', L = '#e8d5b0', o = f % 2 ? 1 : 0;
-    [[5 + o], [9 - o], [15 + o], [18 - o]].forEach(([x]) => p(x, 10, 2, 5, D));
-    p(2, 2, 2, 2, D); p(3, 4, 2, 3, D);                   // cola
-    p(4, 6, 16, 5, D); p(5, 5, 11, 2, K);                 // cuerpo y lomo
+  // perro de Clown: pelaje oscuro, gorro de bufón y gola con cascabel
+  SPR.dog = [0, 1, 2, 3].map(f => makeSprite(27, 20, p0 => {
+    const p = (x, y, w, h, c) => p0(x, y + 5, w, h, c);
+    const D = '#4a4650', K = '#2e2a33', L = '#d9c3a0', R = '#b8322a', B = '#2f5fa8', Y = '#e6b83c', o = f % 2 ? 1 : 0;
+    [[5 + o], [9 - o], [15 + o], [18 - o]].forEach(([x]) => { p(x, 10, 2, 5, D); p(x, 14, 2, 1, K); });
+    p(2, 2, 2, 2, D); p(3, 4, 2, 3, D); p(1, 1, 2, 2, Y);  // cola con pompón
+    p(4, 6, 16, 5, D); p(5, 5, 11, 2, K);                  // cuerpo y lomo
     p(18, 2, 6, 6, D); p(23, 4, 3, 3, D); p(26, 4, 1, 1, '#111');
-    p(18, 0, 2, 3, K); p(21, 0, 2, 2, K);                 // orejas
-    p(21, 3, 1, 1, '#111');
-    p(18, 8, 3, 3, L); p(19, 7, 3, 1, '#b8322a');         // pecho y collar
-    if (f >= 2) p(24, 7, 1, 3, '#e05a6a');                // lengua afuera
+    p(21, 4, 1, 1, '#fff'); p(21, 3, 1, 1, '#111');         // ojo
+    p(18, 8, 2, 3, L);
+    if (f >= 2) p(24, 7, 1, 3, '#e05a6a');                 // lengua afuera
+    // gorro de bufón de dos puntas
+    // (las puntas caen hacia atrás para que no parezcan cuernos)
+    p(17, -1, 6, 3, R); p(20, -1, 3, 3, B); p(17, 1, 6, 1, Y);
+    p(15, -2, 2, 2, R); p(13, -3, 2, 2, R); p(11, -2, 2, 2, Y);
+    p(15, 0, 2, 2, B); p(13, 1, 2, 2, B); p(12, 3, 2, 2, Y);
+    // gola en zigzag
+    p(16, 7, 2, 2, R); p(18, 7, 2, 2, Y); p(20, 7, 2, 2, B); p(22, 7, 1, 2, R);
+    p(17, 9, 1, 1, R); p(19, 9, 1, 1, Y); p(21, 9, 1, 1, B);
+    p(19, 10, 2, 2, Y); p(19, 11, 2, 1, '#8a6528');        // cascabel
   }));
   SPR.bale = makeSprite(30, 20, p => {
     const r = mulberry(7);
@@ -559,7 +569,7 @@ function updateMarto(dt) {
   move(m, m.vx * dt, m.vy * dt, 8);
   m.moving = Math.hypot(m.vx, m.vy) > 14;
   if (m.moving) {
-    m.walk += dt * 12;
+    m.walk += dt * (Math.hypot(m.vx, m.vy) / 12);
     const ax = Math.abs(m.vx), ay = Math.abs(m.vy);
     m.dir = ax > ay * 1.05 ? (m.vx > 0 ? 'right' : 'left') : (m.vy > 0 ? 'front' : 'back');
     m.dustT -= dt;
@@ -739,9 +749,9 @@ function updateClown(dt) {
       break;
     case 'dash': {
       const hit = move(c, c.dx * cfg.clownDash * dt, c.dy * cfg.clownDash * dt, 9, { avoidCorral: true });
-      c.walk += dt * 24;
+      c.walk += dt * 18;
       c.afterT -= dt;
-      if (c.afterT <= 0) { c.after.push({ x: c.x, y: c.y, face: c.face, life: 0.3 }); c.afterT = 0.035; }
+      if (c.afterT <= 0) { c.after.push({ x: c.x, y: c.y, face: c.face, fi: c.fi || 2, life: 0.3 }); c.afterT = 0.035; }
       if (Math.random() < dt * 30) puff(c.x, c.y, 1, '#d9c79a');
       if (hit && hit !== 'wall' && hit !== CORRAL_BLOCK) {
         c.state = 'dizzy'; c.t = 2.3; G.shake = 0.25; A.sfx('bonk'); puff(c.x, c.y, 10);
@@ -766,7 +776,7 @@ function updateClown(dt) {
       if (c.t <= 0) { c.state = 'stroll'; c.t = rand(2.2, 3.4); }
       break;
   }
-  if (sp) { move(c, vx * sp * dt, vy * sp * dt, 9, { avoidCorral: true }); c.walk += dt * 9; }
+  if (sp) { move(c, vx * sp * dt, vy * sp * dt, 9, { avoidCorral: true }); c.walk += dt * (4 + sp / 8); }
   if (c.state === 'stroll' || c.state === 'dash') { const fx = sp ? vx : c.dx, fy = sp ? vy : c.dy; if (fx || fy) c.face = faceFrom(fx, fy); }
   c.moving = sp > 0 || c.state === 'dash';
   c.after = c.after.filter(a => (a.life -= dt) > 0);
@@ -847,40 +857,48 @@ function stars(cx, cy, t, n = 3, rx = 10) {
 }
 function drawCalf(c) {
   const fr = SPR['calf_' + c.type][c.moving ? Math.floor(c.anim) % 2 : 0];
-  const bob = c.state === 'follow' && c.moving ? -Math.abs(Math.sin(c.anim * 1.6)) * 1.5 : 0;
+  const bob = c.moving ? -(Math.floor(c.anim) % 2) : (Math.sin(G.time * 2 + c.x) > 0.7 ? 1 : 0);
   drawFeet(fr, c.x, c.y, c.face < 0, bob);
   if (c.state === 'scared') bang(c.x + c.face * 4, c.y - 22, '#2f5fa8');
 }
 function drawDog(d) {
   const tongue = d.state === 'chase' || d.state === 'rest' ? 2 : 0;
   const fr = SPR.dog[(d.moving ? Math.floor(d.anim) % 2 : 0) + tongue];
-  drawFeet(fr, d.x, d.y, d.face < 0, d.state === 'rest' ? Math.round(Math.sin(G.time * 12)) * 0.5 : 0);
+  const bob = d.moving ? -(Math.floor(d.anim) % 2) : d.state === 'rest' ? (Math.sin(G.time * 14) > 0 ? -1 : 0) : 0;
+  drawFeet(fr, d.x, d.y, d.face < 0, bob);
   if (d.state === 'alert') bang(d.x + d.face * 6, d.y - 20);
 }
+// hojas de animación de Marto y Clown: 2 cuadros quieto (respira) + 4 de caminata
+const FRAMES = 6;
+function drawFrame(img, fi, x, y, flip, dy = 0) {
+  const w = img.width / FRAMES, h = img.height;
+  const px = Math.round(x - w / 2), py = Math.round(y - h + 2 + dy);
+  if (flip) { ctx.save(); ctx.translate(px + w, py); ctx.scale(-1, 1); ctx.drawImage(img, fi * w, 0, w, h, 0, 0, w, h); ctx.restore(); }
+  else ctx.drawImage(img, fi * w, 0, w, h, px, py, w, h);
+}
+const animFrame = (moving, walk, phase) => moving ? 2 + (Math.floor(walk) % 4) : (Math.sin(G.time * 2.6 + phase) > 0.35 ? 1 : 0);
 function martoImg(dir) { return dir === 'front' ? IMG.marto_front : dir === 'back' ? IMG.marto_back : IMG.marto_side; }
 function drawMarto(m) {
   if (m.state === 'fallen') {
-    const img = IMG.marto_front, k = ease((1.45 - m.fallT) / 0.22);
+    const img = IMG.marto_front, w = img.width / FRAMES, h = img.height, k = ease((1.45 - m.fallT) / 0.22);
     ctx.save(); ctx.translate(Math.round(m.x), Math.round(m.y - 2)); ctx.rotate(m.fallDir * k * Math.PI / 2);
-    ctx.drawImage(img, -Math.round(img.width / 2), -img.height + 4); ctx.restore();
-    if (k >= 1) stars(m.x + m.fallDir * (img.height - 14), m.y - 10, G.time, 3, 9);
+    ctx.drawImage(img, 0, 0, w, h, -Math.round(w / 2), -h + 4, w, h); ctx.restore();
+    if (k >= 1) stars(m.x + m.fallDir * (h - 14), m.y - 10, G.time, 3, 9);
     return;
   }
   if (m.inv > 0 && Math.floor(m.inv * 12) % 2) return;
-  const img = martoImg(m.dir);
-  const bob = m.moving ? -Math.round(Math.abs(Math.sin(m.walk)) * 2) : (Math.sin(G.time * 2.4) > 0.6 ? -1 : 0);
-  drawFeet(img, m.x, m.y, m.dir === 'right', bob);
+  drawFrame(martoImg(m.dir), animFrame(m.moving, m.walk, 0), m.x, m.y, m.dir === 'right');
 }
 function clownImg(f) { return f === 'front' ? IMG.clown_front : f === 'back' ? IMG.clown_back : IMG.clown_side; }
 function drawClown(c) {
-  for (const a of c.after) { ctx.globalAlpha = a.life * 1.2; drawFeet(clownImg(a.face), a.x, a.y, a.face === 'left'); }
+  for (const a of c.after) { ctx.globalAlpha = a.life * 1.2; drawFrame(clownImg(a.face), a.fi, a.x, a.y, a.face === 'right'); }
   ctx.globalAlpha = 1;
   let ox = 0, dy = 0;
   if (c.state === 'windup') { ox = Math.round(rand(-1.5, 1.5)); ctx.fillStyle = `rgba(184,50,42,${0.25 + 0.2 * Math.sin(G.time * 30)})`; ctx.beginPath(); ctx.ellipse(c.x, c.y, 16, 5, 0, 0, Math.PI * 2); ctx.fill(); }
-  if (c.moving) dy = -Math.round(Math.abs(Math.sin(c.walk)) * 2);
   if (c.state === 'dizzy') ox = Math.round(Math.sin(G.time * 8) * 1.5);
   if (c.state === 'laugh') dy = Math.sin(G.time * 22) > 0 ? -2 : 0;
-  drawFeet(clownImg(c.face), c.x + ox, c.y, c.face === 'left', dy);
+  c.fi = animFrame(c.moving, c.walk, 1.3);
+  drawFrame(clownImg(c.face), c.fi, c.x + ox, c.y, c.face === 'right', dy);
   if (c.state === 'windup') bang(c.x, c.y - 66);
   if (c.state === 'dizzy') stars(c.x, c.y - 58, G.time, 3, 11);
   if (c.state === 'juggle') {
